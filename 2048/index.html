@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>霓虹 2048 - NEON 2048</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #0a0a1a;
+    color: #e0e0ff;
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background:
+        radial-gradient(ellipse at 30% 40%, rgba(0, 240, 255, 0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 60%, rgba(168, 85, 247, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.grid-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image:
+        linear-gradient(rgba(0, 240, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.02) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.game-wrapper {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #00f0ff, #a855f7, #ff00e4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 30px rgba(0, 240, 255, 0.3));
+}
+
+.title-sub {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    color: rgba(0, 240, 255, 0.4);
+    margin-top: -12px;
+}
+
+.score-bar {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+}
+
+.score-box {
+    flex: 1;
+    background: rgba(13, 13, 36, 0.8);
+    border: 1px solid rgba(0, 240, 255, 0.15);
+    border-radius: 6px;
+    padding: 10px 14px;
+    text-align: center;
+    backdrop-filter: blur(10px);
+}
+
+.score-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(0, 240, 255, 0.5);
+}
+
+.score-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: #00f0ff;
+    text-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+    line-height: 1.2;
+}
+
+.score-value.high {
+    color: #a855f7;
+    text-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+}
+
+.board-panel {
+    position: relative;
+    border: 2px solid rgba(0, 240, 255, 0.3);
+    border-radius: 8px;
+    box-shadow:
+        0 0 30px rgba(0, 240, 255, 0.08),
+        inset 0 0 30px rgba(0, 240, 255, 0.02);
+    overflow: hidden;
+}
+
+canvas#gameCanvas {
+    display: block;
+    background: #0d0d24;
+    border-radius: 6px;
+}
+
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(5, 5, 20, 0.88);
+    backdrop-filter: blur(6px);
+    border-radius: 6px;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+}
+
+.overlay.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.overlay-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 34px;
+    font-weight: 900;
+    letter-spacing: 6px;
+    margin-bottom: 10px;
+}
+
+.overlay-title.won {
+    background: linear-gradient(135deg, #ffe600, #a855f7, #00f0ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 25px rgba(255, 230, 0, 0.3));
+    animation: rainbow-glow 2s linear infinite;
+    background-size: 200% 200%;
+}
+
+@keyframes rainbow-glow {
+    0% { background-position: 0% 50%; filter: drop-shadow(0 0 20px rgba(255,230,0,0.3)); }
+    50% { background-position: 100% 50%; filter: drop-shadow(0 0 30px rgba(168,85,247,0.4)); }
+    100% { background-position: 0% 50%; filter: drop-shadow(0 0 20px rgba(0,240,255,0.3)); }
+}
+
+.overlay-title.gameover {
+    color: #ef4444;
+    text-shadow: 0 0 40px rgba(239, 68, 68, 0.4);
+}
+
+.overlay-score {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 15px;
+    color: rgba(224, 224, 255, 0.7);
+    margin-bottom: 2px;
+    letter-spacing: 2px;
+}
+
+.overlay-score span {
+    color: #00f0ff;
+    font-size: 20px;
+    text-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+}
+
+.overlay-high {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    color: rgba(168, 85, 247, 0.6);
+    margin-bottom: 20px;
+    letter-spacing: 2px;
+}
+
+.overlay-high span {
+    color: #a855f7;
+    font-weight: 600;
+}
+
+.restart-btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    padding: 10px 28px;
+    background: transparent;
+    color: #00f0ff;
+    border: 2px solid rgba(0, 240, 255, 0.4);
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+}
+
+.restart-btn:hover {
+    background: rgba(0, 240, 255, 0.1);
+    border-color: #00f0ff;
+    box-shadow: 0 0 25px rgba(0, 240, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.continue-btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    padding: 8px 20px;
+    margin-top: 8px;
+    background: transparent;
+    color: rgba(224, 224, 255, 0.6);
+    border: 1px solid rgba(224, 224, 255, 0.2);
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+}
+
+.continue-btn:hover {
+    color: #e0e0ff;
+    border-color: rgba(224, 224, 255, 0.4);
+}
+
+.controls-hint {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    color: rgba(0, 240, 255, 0.3);
+    letter-spacing: 3px;
+    margin-top: 4px;
+}
+
+.controls-hint span {
+    display: inline-block;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    padding: 2px 6px;
+    border: 1px solid rgba(0, 240, 255, 0.15);
+    border-radius: 3px;
+    color: rgba(0, 240, 255, 0.5);
+    margin: 0 2px;
+}
+</style>
+</head>
+<body>
+<div class="grid-overlay"></div>
+
+<div class="game-wrapper">
+    <div class="title">NEON 2048</div>
+    <div class="title-sub">霓 虹 合 并</div>
+
+    <div class="score-bar">
+        <div class="score-box">
+            <div class="score-label">Score</div>
+            <div class="score-value" id="scoreDisplay">0</div>
+        </div>
+        <div class="score-box">
+            <div class="score-label">High Score</div>
+            <div class="score-value high" id="highDisplay">0</div>
+        </div>
+    </div>
+
+    <div class="board-panel">
+        <canvas id="gameCanvas"></canvas>
+        <div class="overlay" id="wonOverlay">
+            <div class="overlay-title won">你赢了!</div>
+            <div class="overlay-score">分数 <span id="wonScore">0</span></div>
+            <button class="continue-btn" id="continueBtn">继续游戏</button>
+            <button class="restart-btn" style="margin-top:12px;" id="wonRestartBtn">重新开始</button>
+        </div>
+        <div class="overlay" id="gameOverOverlay">
+            <div class="overlay-title gameover">GAME OVER</div>
+            <div class="overlay-score">最终得分 <span id="finalScore">0</span></div>
+            <div class="overlay-high">最高纪录 <span id="finalHigh">0</span></div>
+            <button class="restart-btn" id="restartBtn">重新开始</button>
+        </div>
+    </div>
+
+    <div class="controls-hint">
+        <span>←</span> <span>↑</span> <span>↓</span> <span>→</span> 方向键移动
+        &nbsp;·&nbsp; 滑动触屏
+    </div>
+</div>
+
+<script>
+const SIZE = 4;
+const CELL = 110;
+const GAP = 8;
+const PAD = 12;
+const BOARD_SIZE = SIZE * CELL + (SIZE + 1) * GAP + PAD * 2;
+const ANIM_DURATION = 120;
+const POP_DURATION = 180;
+
+const COLORS = {
+    2:      { bg: '#0a2a2a', main: '#00f0ff', glow: 'rgba(0,240,255,0.5)', text: '#00f0ff' },
+    4:      { bg: '#0a2a18', main: '#22c55e', glow: 'rgba(34,197,94,0.5)', text: '#22c55e' },
+    8:      { bg: '#0a1a30', main: '#3b82f6', glow: 'rgba(59,130,246,0.5)', text: '#3b82f6' },
+    16:     { bg: '#1a0a30', main: '#a855f7', glow: 'rgba(168,85,247,0.5)', text: '#a855f7' },
+    32:     { bg: '#1a0a10', main: '#f97316', glow: 'rgba(249,115,22,0.5)', text: '#f97316' },
+    64:     { bg: '#1a0808', main: '#ef4444', glow: 'rgba(239,68,68,0.5)', text: '#ef4444' },
+    128:    { bg: '#1a1400', main: '#ffe600', glow: 'rgba(255,230,0,0.5)', text: '#ffe600' },
+    256:    { bg: '#1a0a20', main: '#e879f9', glow: 'rgba(232,121,249,0.5)', text: '#e879f9' },
+    512:    { bg: '#0a0a30', main: '#818cf8', glow: 'rgba(129,140,248,0.5)', text: '#818cf8' },
+    1024:   { bg: '#001a2a', main: '#22d3ee', glow: 'rgba(34,211,238,0.5)', text: '#22d3ee' },
+    2048:   { bg: '#0a0a10', main: '#ffffff', glow: 'rgba(255,255,255,0.6)', text: '#ffffff' }
+};
+
+function getColor(value) {
+    if (value > 2048) return COLORS[2048];
+    return COLORS[value] || { bg: '#0a0a10', main: '#ffffff', glow: 'rgba(255,255,255,0.4)', text: '#ffffff' };
+}
+
+function getFontSize(value) {
+    if (value < 100) return 36;
+    if (value < 1000) return 30;
+    if (value < 10000) return 24;
+    return 18;
+}
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = BOARD_SIZE;
+canvas.height = BOARD_SIZE;
+
+let grid = [];
+let tiles = [];
+let score = 0;
+let highScore = parseInt(localStorage.getItem('neon2048High') || '0');
+let gameState = 'playing';
+let hasWon = false;
+let animating = false;
+let lastTime = 0;
+let particles = [];
+let wonScoreEl = document.getElementById('wonScore');
+
+document.getElementById('highDisplay').textContent = highScore.toLocaleString();
+
+function createTile(value, x, y, animType) {
+    return {
+        value,
+        x, y,
+        fromX: animType === 'move' ? x : x,
+        fromY: animType === 'move' ? y : y,
+        displayX: x,
+        displayY: y,
+        animProgress: 0,
+        animDuration: animType === 'pop' ? POP_DURATION : ANIM_DURATION,
+        scale: animType === 'pop' ? 0 : 1,
+        opacity: animType === 'pop' ? 0 : 1,
+        isMerged: animType === 'merge',
+        mergeGlow: animType === 'merge' ? 1 : 0,
+        animType: animType || 'none'
+    };
+}
+
+function initGrid() {
+    grid = [];
+    for (let r = 0; r < SIZE; r++) {
+        grid.push(new Array(SIZE).fill(0));
+    }
+}
+
+function addRandomTile() {
+    const empty = [];
+    for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+            if (grid[r][c] === 0) empty.push({ r, c });
+        }
+    }
+    if (empty.length === 0) return null;
+    const pos = empty[Math.floor(Math.random() * empty.length)];
+    const value = Math.random() < 0.9 ? 2 : 4;
+    grid[pos.r][pos.c] = value;
+    tiles.push(createTile(value, pos.c, pos.r, 'pop'));
+    return pos;
+}
+
+function initTiles() {
+    tiles = [];
+    for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+            if (grid[r][c] !== 0) {
+                tiles.push(createTile(grid[r][c], c, r, 'none'));
+            }
+        }
+    }
+}
+
+function getEmptyCells() {
+    const empty = [];
+    for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+            if (grid[r][c] === 0) empty.push({ r, c });
+        }
+    }
+    return empty;
+}
+
+function slideRow(row) {
+    let arr = row.filter(v => v !== 0);
+    let merged = [];
+    let scoreGain = 0;
+    let i = 0;
+    while (i < arr.length) {
+        if (i + 1 < arr.length && arr[i] === arr[i + 1]) {
+            merged.push(arr[i] * 2);
+            scoreGain += arr[i] * 2;
+            i += 2;
+        } else {
+            merged.push(arr[i]);
+            i++;
+        }
+    }
+    while (merged.length < SIZE) merged.push(0);
+    return { result: merged, scoreGain };
+}
+
+function move(direction) {
+    if (animating || gameState === 'gameover') return;
+    if (gameState === 'won') return;
+
+    const oldGrid = grid.map(row => [...row]);
+    let totalScore = 0;
+    let moved = false;
+
+    const mergePositions = [];
+
+    if (direction === 'left') {
+        for (let r = 0; r < SIZE; r++) {
+            const { result, scoreGain } = slideRow(grid[r]);
+            for (let c = 0; c < SIZE; c++) {
+                if (result[c] !== 0 && result[c] === grid[r][c] * 2 && grid[r][c] !== 0) {
+                    mergePositions.push({ r, c });
+                }
+            }
+            grid[r] = result;
+            totalScore += scoreGain;
+        }
+    } else if (direction === 'right') {
+        for (let r = 0; r < SIZE; r++) {
+            const reversed = [...grid[r]].reverse();
+            const { result, scoreGain } = slideRow(reversed);
+            const final = result.reverse();
+            for (let c = 0; c < SIZE; c++) {
+                if (final[c] !== 0 && final[c] === grid[r][c] * 2 && grid[r][c] !== 0) {
+                    mergePositions.push({ r, c });
+                }
+            }
+            grid[r] = final;
+            totalScore += scoreGain;
+        }
+    } else if (direction === 'up') {
+        for (let c = 0; c < SIZE; c++) {
+            const col = [];
+            for (let r = 0; r < SIZE; r++) col.push(grid[r][c]);
+            const { result, scoreGain } = slideRow(col);
+            for (let r = 0; r < SIZE; r++) {
+                if (result[r] !== 0 && result[r] === grid[r][c] * 2 && grid[r][c] !== 0) {
+                    mergePositions.push({ r, c });
+                }
+                grid[r][c] = result[r];
+            }
+            totalScore += scoreGain;
+        }
+    } else if (direction === 'down') {
+        for (let c = 0; c < SIZE; c++) {
+            const col = [];
+            for (let r = SIZE - 1; r >= 0; r--) col.push(grid[r][c]);
+            const { result, scoreGain } = slideRow(col);
+            const final = result.reverse();
+            for (let r = 0; r < SIZE; r++) {
+                if (final[r] !== 0 && final[r] === grid[r][c] * 2 && grid[r][c] !== 0) {
+                    mergePositions.push({ r, c });
+                }
+                grid[r][c] = final[r];
+            }
+            totalScore += scoreGain;
+        }
+    }
+
+    for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+            if (grid[r][c] !== oldGrid[r][c]) {
+                moved = true;
+                break;
+            }
+        }
+        if (moved) break;
+    }
+
+    if (!moved) return;
+
+    score += totalScore;
+    document.getElementById('scoreDisplay').textContent = score.toLocaleString();
+    if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('neon2048High', highScore.toString());
+        document.getElementById('highDisplay').textContent = highScore.toLocaleString();
+    }
+
+    animateMove(oldGrid, direction);
+
+    for (const pos of mergePositions) {
+        spawnMergeParticles(pos.c, pos.r);
+    }
+
+    if (!hasWon) {
+        for (let r = 0; r < SIZE; r++) {
+            for (let c = 0; c < SIZE; c++) {
+                if (grid[r][c] >= 2048) {
+                    hasWon = true;
+                    setTimeout(() => {
+                        if (gameState !== 'gameover') {
+                            gameState = 'won';
+                            document.getElementById('wonScore').textContent = score.toLocaleString();
+                            document.getElementById('wonOverlay').classList.add('active');
+                        }
+                    }, 350);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+function animateMove(oldGrid, direction) {
+    animating = true;
+    tiles = [];
+
+    const dx = direction === 'left' ? -1 : direction === 'right' ? 1 : 0;
+    const dy = direction === 'up' ? -1 : direction === 'down' ? 1 : 0;
+
+    const used = {};
+
+    for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+            if (grid[r][c] !== 0) {
+                let fromR = r, fromC = c;
+                let isMerge = false;
+
+                if (dx !== 0) {
+                    for (let cc = c - dx; cc >= 0 && cc < SIZE; cc -= dx) {
+                        if (oldGrid[r][cc] !== 0) {
+                            if (oldGrid[r][cc] * 2 === grid[r][c] && !used[`${r},${cc}`]) {
+                                fromC = cc;
+                                used[`${r},${cc}`] = true;
+                                isMerge = true;
+                            } else if (oldGrid[r][cc] === grid[r][c]) {
+                                fromC = cc;
+                            }
+                            break;
+                        }
+                        fromC = cc;
+                    }
+                } else if (dy !== 0) {
+                    for (let rr = r - dy; rr >= 0 && rr < SIZE; rr -= dy) {
+                        if (oldGrid[rr][c] !== 0) {
+                            if (oldGrid[rr][c] * 2 === grid[r][c] && !used[`${rr},${c}`]) {
+                                fromR = rr;
+                                used[`${rr},${c}`] = true;
+                                isMerge = true;
+                            } else if (oldGrid[rr][c] === grid[r][c]) {
+                                fromR = rr;
+                            }
+                            break;
+                        }
+                        fromR = rr;
+                    }
+                }
+
+                const tile = createTile(grid[r][c], c, r, isMerge ? 'merge' : 'move');
+                tile.fromX = fromC;
+                tile.fromY = fromR;
+                tiles.push(tile);
+            }
+        }
+    }
+
+    setTimeout(() => {
+        addRandomTile();
+        animating = false;
+        checkGameOver();
+    }, Math.max(ANIM_DURATION, POP_DURATION) + 50);
+}
+
+function checkGameOver() {
+    if (animating || hasWon) return;
+    for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+            if (grid[r][c] === 0) return;
+            if (c < SIZE - 1 && grid[r][c] === grid[r][c + 1]) return;
+            if (r < SIZE - 1 && grid[r][c] === grid[r + 1][c]) return;
+        }
+    }
+    setTimeout(() => {
+        if (gameState === 'playing' || gameState === 'won') {
+            gameState = 'gameover';
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('neon2048High', highScore.toString());
+            }
+            document.getElementById('finalScore').textContent = score.toLocaleString();
+            document.getElementById('finalHigh').textContent = highScore.toLocaleString();
+            document.getElementById('gameOverOverlay').classList.add('active');
+        }
+    }, 200);
+}
+
+function spawnMergeParticles(col, row) {
+    const cx = PAD + GAP + col * (CELL + GAP) + CELL / 2;
+    const cy = PAD + GAP + row * (CELL + GAP) + CELL / 2;
+    const val = grid[row][col];
+    const c = getColor(val);
+    for (let i = 0; i < 12; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 2 + Math.random() * 4;
+        particles.push({
+            x: cx, y: cy,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1,
+            decay: 0.015 + Math.random() * 0.015,
+            size: 3 + Math.random() * 5,
+            color: c.main
+        });
+    }
+}
+
+function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.06;
+        p.vx *= 0.97;
+        p.life -= p.decay;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+}
+
+function drawParticles() {
+    for (const p of particles) {
+        ctx.globalAlpha = p.life;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+}
+
+function updateAnimations() {
+    for (const tile of tiles) {
+        if (tile.animType !== 'none' && tile.animProgress < 1) {
+            tile.animProgress += 16 / tile.animDuration;
+            if (tile.animProgress > 1) tile.animProgress = 1;
+            const ease = 1 - Math.pow(1 - tile.animProgress, 3);
+            tile.displayX = tile.fromX + (tile.x - tile.fromX) * ease;
+            tile.displayY = tile.fromY + (tile.y - tile.fromY) * ease;
+            if (tile.animType === 'pop') {
+                tile.scale = ease < 0.5 ? 2 * ease : 1 - 2 * (ease - 0.5) * 0.3;
+                tile.opacity = ease;
+            }
+            if (tile.animType === 'merge') {
+                tile.mergeGlow = 1 - tile.animProgress;
+            }
+        }
+    }
+}
+
+function drawBoard() {
+    ctx.fillStyle = '#0d0d24';
+    ctx.fillRect(0, 0, BOARD_SIZE, BOARD_SIZE);
+
+    for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+            const x = PAD + GAP + c * (CELL + GAP);
+            const y = PAD + GAP + r * (CELL + GAP);
+            ctx.fillStyle = 'rgba(255,255,255,0.03)';
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.roundRect(x, y, CELL, CELL, 4);
+            ctx.fill();
+        }
+    }
+}
+
+function drawTile(tile) {
+    const x = PAD + GAP + tile.displayX * (CELL + GAP);
+    const y = PAD + GAP + tile.displayY * (CELL + GAP);
+    const color = getColor(tile.value);
+    const s = tile.scale || 1;
+
+    const centerX = x + CELL / 2;
+    const centerY = y + CELL / 2;
+    const w = CELL * s;
+    const h = CELL * s;
+    const drawX = centerX - w / 2;
+    const drawY = centerY - h / 2;
+
+    ctx.globalAlpha = tile.opacity || 1;
+
+    const is2048 = tile.value >= 2048;
+    let bgColor = color.bg;
+    if (is2048) {
+        const hue = (Date.now() / 30) % 360;
+        bgColor = `hsl(${hue}, 60%, 15%)`;
+    }
+
+    ctx.shadowColor = color.glow;
+    ctx.shadowBlur = tile.isMerged ? 20 + tile.mergeGlow * 20 : 10;
+    ctx.fillStyle = bgColor;
+    ctx.beginPath();
+    ctx.roundRect(drawX, drawY, w, h, 4);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = color.main;
+    ctx.lineWidth = is2048 ? 2 : 1.5;
+    ctx.globalAlpha = (tile.opacity || 1) * (is2048 ? 0.8 : 0.4);
+    ctx.beginPath();
+    ctx.roundRect(drawX, drawY, w, h, 4);
+    ctx.stroke();
+    ctx.globalAlpha = tile.opacity || 1;
+
+    const fontSize = getFontSize(tile.value) * s;
+    ctx.font = `${fontSize}px 'Orbitron', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.shadowColor = color.glow;
+    ctx.shadowBlur = is2048 ? 20 : 10;
+    ctx.fillStyle = is2048 ? (() => {
+        const hue = (Date.now() / 40) % 360;
+        return `hsl(${hue}, 100%, 70%)`;
+    })() : color.text;
+    ctx.fillText(tile.value, centerX, centerY + 1);
+    ctx.shadowBlur = 0;
+
+    ctx.globalAlpha = 1;
+}
+
+function draw() {
+    drawBoard();
+
+    for (const tile of tiles) {
+        if (tile.animType !== 'pop') drawTile(tile);
+    }
+    for (const tile of tiles) {
+        if (tile.animType === 'pop') drawTile(tile);
+    }
+
+    drawParticles();
+}
+
+function gameLoop(time = 0) {
+    const delta = time - lastTime;
+    lastTime = time;
+
+    updateAnimations();
+    if (particles.length > 0) updateParticles();
+
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+function restart() {
+    document.getElementById('gameOverOverlay').classList.remove('active');
+    document.getElementById('wonOverlay').classList.remove('active');
+    gameState = 'playing';
+    hasWon = false;
+    animating = false;
+    score = 0;
+    particles = [];
+    document.getElementById('scoreDisplay').textContent = '0';
+    initGrid();
+    addRandomTile();
+    addRandomTile();
+    initTiles();
+    animating = false;
+}
+
+function continueGame() {
+    document.getElementById('wonOverlay').classList.remove('active');
+    gameState = 'playing';
+}
+
+function init() {
+    initGrid();
+    addRandomTile();
+    addRandomTile();
+    initTiles();
+    gameLoop();
+
+    document.addEventListener('keydown', (e) => {
+        const key = e.key;
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+            e.preventDefault();
+            if (gameState === 'playing') {
+                const map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
+                move(map[key]);
+            }
+        }
+    });
+
+    let touchStartX = 0, touchStartY = 0;
+    canvas.addEventListener('touchstart', (e) => {
+        const t = e.touches[0];
+        touchStartX = t.clientX;
+        touchStartY = t.clientY;
+    }, { passive: true });
+
+    canvas.addEventListener('touchend', (e) => {
+        if (!touchStartX) return;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - touchStartX;
+        const dy = t.clientY - touchStartY;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+        if (Math.max(absDx, absDy) < 20) return;
+        if (absDx > absDy) {
+            move(dx > 0 ? 'right' : 'left');
+        } else {
+            move(dy > 0 ? 'down' : 'up');
+        }
+        touchStartX = 0;
+        touchStartY = 0;
+    }, { passive: true });
+
+    document.getElementById('restartBtn').addEventListener('click', restart);
+    document.getElementById('wonRestartBtn').addEventListener('click', restart);
+    document.getElementById('continueBtn').addEventListener('click', continueGame);
+}
+
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+        if (r > w / 2) r = w / 2;
+        if (r > h / 2) r = h / 2;
+        this.moveTo(x + r, y);
+        this.lineTo(x + w - r, y);
+        this.quadraticCurveTo(x + w, y, x + w, y + r);
+        this.lineTo(x + w, y + h - r);
+        this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        this.lineTo(x + r, y + h);
+        this.quadraticCurveTo(x, y + h, x, y + h - r);
+        this.lineTo(x, y + r);
+        this.quadraticCurveTo(x, y, x + r, y);
+        this.closePath();
+        return this;
+    };
+}
+
+init();
+</script>
+</body>
+</html>
