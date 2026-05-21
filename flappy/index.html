@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neon Flappy Bird</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+body {
+    background: #050510;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Rajdhani', sans-serif;
+    overflow: hidden;
+}
+.game-wrapper {
+    position: relative;
+    border: 2px solid #00f0ff;
+    box-shadow:
+        0 0 15px rgba(0, 240, 255, 0.3),
+        0 0 40px rgba(0, 240, 255, 0.1),
+        inset 0 0 15px rgba(0, 240, 255, 0.05);
+    border-radius: 6px;
+}
+canvas {
+    display: block;
+    background: #0a0a1a;
+    border-radius: 4px;
+}
+</style>
+</head>
+<body>
+
+<div class="game-wrapper">
+    <canvas id="gameCanvas" width="420" height="640"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const W = 420;
+const H = 640;
+
+const STORAGE_KEY = 'neonFlappyHigh';
+
+const CYAN = '#00f0ff';
+const YELLOW = '#ffe600';
+const PINK = '#ff2d95';
+const PURPLE = '#b000ff';
+const DARK_BG = '#0a0a1a';
+
+class Game {
+    constructor() {
+        this.bird = new Bird();
+        this.pipes = [];
+        this.ground = new Ground();
+        this.particles = [];
+        this.score = 0;
+        this.highScore = parseInt(localStorage.getItem(STORAGE_KEY)) || 0;
+        this.state = 'READY';
+        this.frameCount = 0;
+        this.pipeTimer = 0;
+        this.pipeInterval = 100;
+        this.basePipeSpeed = 2.5;
+    }
+
+    reset() {
+        this.bird = new Bird();
+        this.pipes = [];
+        this.particles = [];
+        this.score = 0;
+        this.frameCount = 0;
+        this.pipeTimer = 0;
+        this.state = 'READY';
+    }
+
+    flap() {
+        if (this.state === 'READY') {
+            this.state = 'PLAYING';
+        }
+        if (this.state !== 'PLAYING') return;
+        this.bird.flap();
+        for (let i = 0; i < 8; i++) {
+            this.particles.push(new FlapParticle(this.bird.x, this.bird.y));
+        }
+    }
+
+    update() {
+        this.frameCount++;
+
+        if (this.state === 'PLAYING' || this.state === 'READY') {
+            this.ground.update();
+        }
+
+        if (this.state === 'PLAYING') {
+            this.bird.update();
+
+            this.pipeTimer++;
+            if (this.pipeTimer >= this.pipeInterval) {
+                this.pipeTimer = 0;
+                this.pipes.push(new Pipe());
+                if (this.pipeInterval > 55) {
+                    this.pipeInterval -= 0.3;
+                }
+            }
+
+            for (let i = this.pipes.length - 1; i >= 0; i--) {
+                const p = this.pipes[i];
+                p.update();
+                if (!p.scored && p.x + p.w < this.bird.x) {
+                    p.scored = true;
+                    this.score++;
+                }
+                if (p.x + p.w < 0) {
+                    this.pipes.splice(i, 1);
+                }
+            }
+
+            for (const p of this.pipes) {
+                if (this.bird.hitsPipe(p)) {
+                    this.die();
+                    return;
+                }
+            }
+
+            if (this.bird.y - 16 < 0 || this.bird.y + 16 > H - this.ground.h) {
+                this.die();
+                return;
+            }
+        }
+
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            this.particles[i].update();
+            if (this.particles[i].life <= 0) {
+                this.particles.splice(i, 1);
+            }
+        }
+    }
+
+    die() {
+        this.state = 'GAME_OVER';
+        if (this.score > this.highScore) {
+            this.highScore = this.score;
+            localStorage.setItem(STORAGE_KEY, this.highScore);
+        }
+        for (let i = 0; i < 40; i++) {
+            this.particles.push(new DeathParticle(this.bird.x, this.bird.y));
+        }
+    }
+
+    draw() {
+        ctx.fillStyle = DARK_BG;
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.save();
+        this.drawStars();
+        this.drawPipes();
+        this.drawParticles();
+        if (this.state !== 'GAME_OVER') {
+            this.bird.draw();
+        }
+        this.ground.draw();
+        this.drawScore();
+        this.drawOverlays();
+        ctx.restore();
+    }
+
+    drawStars() {
+        if (!this._stars) {
+            this._stars = [];
+            for (let i = 0; i < 60; i++) {
+                this._stars.push({
+                    x: Math.random() * W,
+                    y: Math.random() * H * 0.7,
+                    r: Math.random() * 1.5 + 0.3,
+                    a: Math.random() * 0.5 + 0.2,
+                    s: Math.random() * 0.02 + 0.005,
+                });
+            }
+        }
+        for (const star of this._stars) {
+            const alpha = star.a + Math.sin(this.frameCount * star.s) * 0.2;
+            ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    drawPipes() {
+        for (const p of this.pipes) {
+            p.draw();
+        }
+    }
+
+    drawParticles() {
+        for (const p of this.particles) {
+            p.draw();
+        }
+    }
+
+    drawScore() {
+        ctx.font = '700 48px Orbitron, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+
+        const scoreStr = String(this.score);
+        const x = W / 2;
+        const y = 30;
+
+        ctx.shadowColor = CYAN;
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = CYAN;
+        ctx.fillText(scoreStr, x, y);
+        ctx.shadowBlur = 0;
+    }
+
+    drawOverlays() {
+        if (this.state === 'READY') {
+            ctx.font = '700 40px Orbitron, monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = YELLOW;
+            ctx.shadowBlur = 25;
+            ctx.fillStyle = YELLOW;
+            ctx.fillText('NEON FLAPPY', W / 2, H * 0.25);
+            ctx.shadowBlur = 0;
+
+            ctx.font = '600 20px Rajdhani, sans-serif';
+            ctx.fillStyle = CYAN;
+            ctx.shadowColor = CYAN;
+            ctx.shadowBlur = 12;
+            ctx.fillText('PRESS SPACE / CLICK / TAP TO START', W / 2, H * 0.38);
+            ctx.shadowBlur = 0;
+
+            this.bird.drawIdle();
+        }
+
+        if (this.state === 'GAME_OVER') {
+            const ox = W / 2;
+            const oy = H / 2 - 10;
+
+            ctx.fillStyle = 'rgba(5, 5, 16, 0.75)';
+            ctx.fillRect(0, 0, W, H);
+
+            ctx.shadowColor = PINK;
+            ctx.shadowBlur = 30;
+            ctx.strokeStyle = PINK;
+            ctx.lineWidth = 2;
+            const bw = 260, bh = 220;
+            const rx = ox - bw / 2, ry = oy - bh / 2;
+            ctx.strokeRect(rx, ry, bw, bh);
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = 'rgba(10, 10, 26, 0.9)';
+            ctx.fillRect(rx, ry, bw, bh);
+
+            ctx.font = '700 28px Orbitron, monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = PINK;
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = PINK;
+            ctx.fillText('GAME OVER', ox, oy - 70);
+            ctx.shadowBlur = 0;
+
+            ctx.font = '600 20px Rajdhani, sans-serif';
+            ctx.fillStyle = '#aaa';
+            ctx.fillText('SCORE', ox, oy - 25);
+            ctx.font = '700 36px Orbitron, monospace';
+            ctx.shadowColor = CYAN;
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = CYAN;
+            ctx.fillText(String(this.score), ox, oy + 15);
+            ctx.shadowBlur = 0;
+
+            ctx.font = '600 16px Rajdhani, sans-serif';
+            ctx.fillStyle = '#888';
+            ctx.fillText('BEST', ox, oy + 58);
+            ctx.font = '700 22px Orbitron, monospace';
+            ctx.shadowColor = YELLOW;
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = YELLOW;
+            ctx.fillText(String(this.highScore), ox, oy + 82);
+            ctx.shadowBlur = 0;
+
+            const by = oy + 130;
+            ctx.shadowColor = CYAN;
+            ctx.shadowBlur = 15;
+            ctx.strokeStyle = CYAN;
+            ctx.lineWidth = 2;
+            const bwx = 160, bwh = 44;
+            ctx.strokeRect(ox - bwx / 2, by - bwh / 2, bwx, bwh);
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = 'rgba(0, 240, 255, 0.1)';
+            ctx.fillRect(ox - bwx / 2, by - bwh / 2, bwx, bwh);
+
+            ctx.font = '600 20px Rajdhani, sans-serif';
+            ctx.fillStyle = CYAN;
+            ctx.shadowColor = CYAN;
+            ctx.shadowBlur = 8;
+            ctx.fillText('RESTART', ox, by + 2);
+            ctx.shadowBlur = 0;
+        }
+    }
+}
+
+class Bird {
+    constructor() {
+        this.x = 80;
+        this.y = H / 2;
+        this.vy = 0;
+        this.gravity = 0.45;
+        this.flapForce = -7.2;
+        this.rotation = 0;
+        this.size = 16;
+        this.trail = [];
+        this.wingAngle = 0;
+    }
+
+    flap() {
+        this.vy = this.flapForce;
+    }
+
+    update() {
+        this.vy += this.gravity;
+        this.y += this.vy;
+        this.rotation = Math.atan2(this.vy, 8) * 1.2;
+        this.rotation = Math.max(-0.5, Math.min(0.8, this.rotation));
+
+        this.trail.push({ x: this.x, y: this.y, life: 12 });
+        if (this.trail.length > 12) this.trail.shift();
+        for (const t of this.trail) {
+            t.life--;
+        }
+        this.trail = this.trail.filter(t => t.life > 0);
+
+        this.wingAngle += 0.15;
+    }
+
+    draw() {
+        for (const t of this.trail) {
+            const alpha = t.life / 12 * 0.5;
+            const size = (t.life / 12) * 10;
+            ctx.globalAlpha = alpha;
+            ctx.shadowColor = YELLOW;
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = YELLOW;
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+        ctx.globalAlpha = 1;
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rotation);
+
+        const s = this.size;
+        ctx.shadowColor = YELLOW;
+        ctx.shadowBlur = 25;
+        ctx.strokeStyle = YELLOW;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, -s);
+        ctx.lineTo(s, 0);
+        ctx.lineTo(0, s);
+        ctx.lineTo(-s, 0);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = 'rgba(255, 230, 0, 0.12)';
+        ctx.beginPath();
+        ctx.moveTo(0, -s);
+        ctx.lineTo(s, 0);
+        ctx.lineTo(0, s);
+        ctx.lineTo(-s, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        const eyeSize = 3;
+        ctx.fillStyle = '#fff';
+        ctx.shadowColor = '#fff';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(s * 0.35, -s * 0.15, eyeSize, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = '#050510';
+        ctx.beginPath();
+        ctx.arc(s * 0.45, -s * 0.2, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        const wingSpread = 0.3 + Math.sin(this.wingAngle) * 0.25;
+        ctx.strokeStyle = 'rgba(255, 230, 0, 0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = YELLOW;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.3, 0);
+        ctx.lineTo(-s * 0.9, -s * wingSpread);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.restore();
+    }
+
+    drawIdle() {
+        const bounce = Math.sin(Date.now() / 300) * 4;
+        const bx = this.x;
+        const by = this.y + bounce;
+
+        ctx.save();
+        ctx.translate(bx, by);
+
+        const s = this.size;
+        ctx.shadowColor = YELLOW;
+        ctx.shadowBlur = 25;
+        ctx.strokeStyle = YELLOW;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, -s);
+        ctx.lineTo(s, 0);
+        ctx.lineTo(0, s);
+        ctx.lineTo(-s, 0);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = 'rgba(255, 230, 0, 0.12)';
+        ctx.beginPath();
+        ctx.moveTo(0, -s);
+        ctx.lineTo(s, 0);
+        ctx.lineTo(0, s);
+        ctx.lineTo(-s, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        const eyeSize = 3;
+        ctx.fillStyle = '#fff';
+        ctx.shadowColor = '#fff';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(s * 0.35, -s * 0.15, eyeSize, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = '#050510';
+        ctx.beginPath();
+        ctx.arc(s * 0.45, -s * 0.2, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    hitsPipe(pipe) {
+        const s = this.size * 0.65;
+        const bx = this.x, by = this.y;
+        const px = pipe.x, pw = pipe.w;
+        const gapTop = pipe.gapY, gapBot = pipe.gapY + pipe.gapH;
+
+        if (bx + s > px && bx - s < px + pw) {
+            if (by - s < gapTop || by + s > gapBot) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+class Pipe {
+    constructor() {
+        this.w = 56;
+        this.gapH = 140 + Math.random() * 30;
+        const minY = 60;
+        const maxY = H - this.gapH - 60 - 80;
+        this.gapY = minY + Math.random() * (maxY - minY);
+        this.x = W + 10;
+        this.speed = 2.5;
+        this.scored = false;
+    }
+
+    update() {
+        this.x -= this.speed;
+    }
+
+    draw() {
+        const px = this.x, pw = this.w;
+        const gapT = this.gapY, gapB = this.gapY + this.gapH;
+
+        const glowColor = CYAN;
+        ctx.shadowColor = glowColor;
+        ctx.shadowBlur = 18;
+        ctx.strokeStyle = glowColor;
+        ctx.lineWidth = 2.5;
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.06)';
+
+        const topH = gapT;
+        ctx.fillRect(px, 0, pw, topH);
+        ctx.strokeRect(px, 0, pw, topH);
+
+        const capW = pw + 12;
+        const capH = 22;
+        const capX = px - 6;
+        const capY = gapT - capH;
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.1)';
+        ctx.fillRect(capX, capY, capW, capH);
+        ctx.strokeRect(capX, capY, capW, capH);
+
+        const botY = gapB;
+        const botH = H - 80 - gapB;
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.06)';
+        ctx.fillRect(px, botY, pw, botH);
+        ctx.strokeRect(px, botY, pw, botH);
+
+        const capBY = gapB;
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.1)';
+        ctx.fillRect(capX, capBY, capW, capH);
+        ctx.strokeRect(capX, capBY, capW, capH);
+
+        ctx.shadowBlur = 0;
+    }
+}
+
+class Ground {
+    constructor() {
+        this.h = 80;
+        this.x = 0;
+        this.speed = 2.5;
+    }
+
+    update() {
+        this.x -= this.speed;
+        if (this.x <= -24) this.x = 0;
+    }
+
+    draw() {
+        const gy = H - this.h;
+
+        const grad = ctx.createLinearGradient(0, gy, 0, H);
+        grad.addColorStop(0, 'rgba(0, 240, 255, 0.08)');
+        grad.addColorStop(0.3, 'rgba(0, 240, 255, 0.15)');
+        grad.addColorStop(1, 'rgba(0, 240, 255, 0.3)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, gy, W, this.h);
+
+        ctx.strokeStyle = CYAN;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = CYAN;
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.moveTo(0, gy);
+        ctx.lineTo(W, gy);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.15)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < W + 24; i += 24) {
+            const lx = i + (this.x % 24);
+            ctx.beginPath();
+            ctx.moveTo(lx, gy + 10);
+            ctx.lineTo(lx + 12, gy + 10);
+            ctx.stroke();
+        }
+
+        for (let i = 0; i < W + 48; i += 48) {
+            const lx = i + (this.x * 1.5 % 48);
+            ctx.strokeStyle = 'rgba(0, 240, 255, 0.08)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(lx, gy + 25);
+            ctx.lineTo(lx, H);
+            ctx.stroke();
+        }
+    }
+}
+
+class FlapParticle {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1 + Math.random() * 2.5;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed - 1;
+        this.life = 20 + Math.random() * 15;
+        this.maxLife = this.life;
+        this.size = 2 + Math.random() * 2;
+        this.color = ['#ffe600', '#00f0ff', '#ff2d95', '#b000ff'][Math.floor(Math.random() * 4)];
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += 0.05;
+        this.life--;
+        this.size *= 0.98;
+    }
+
+    draw() {
+        const alpha = this.life / this.maxLife;
+        ctx.globalAlpha = alpha;
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+    }
+}
+
+class DeathParticle {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 2 + Math.random() * 6;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.life = 40 + Math.random() * 30;
+        this.maxLife = this.life;
+        this.size = 2 + Math.random() * 4;
+        this.gravity = 0.08;
+        const colors = ['#00f0ff', '#ffe600', '#ff2d95', '#b000ff', '#ff6600', '#00ff88'];
+        this.color = colors[Math.floor(Math.random() * colors.length)];
+        this.trail = [];
+    }
+
+    update() {
+        this.trail.push({ x: this.x, y: this.y, life: 8 });
+        if (this.trail.length > 6) this.trail.shift();
+        for (const t of this.trail) t.life--;
+
+        this.vy += this.gravity;
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vx *= 0.99;
+        this.vy *= 0.99;
+        this.life--;
+        this.size *= 0.995;
+    }
+
+    draw() {
+        for (const t of this.trail) {
+            if (t.life <= 0) continue;
+            const alpha = (t.life / 8) * 0.3;
+            ctx.globalAlpha = alpha;
+            ctx.shadowColor = this.color;
+            ctx.shadowBlur = 8;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, this.size * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+        ctx.globalAlpha = 1;
+
+        const alpha = this.life / this.maxLife;
+        ctx.globalAlpha = alpha;
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+    }
+}
+
+const game = new Game();
+
+function handleInput(e) {
+    if (e) e.preventDefault();
+    if (game.state === 'GAME_OVER') {
+        game.reset();
+        return;
+    }
+    game.flap();
+}
+
+canvas.addEventListener('click', handleInput);
+canvas.addEventListener('touchstart', handleInput, { passive: false });
+
+document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' || e.code === 'ArrowUp') {
+        e.preventDefault();
+        handleInput();
+    }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (game.state === 'READY') {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = W / rect.width;
+        const scaleY = H / rect.height;
+        const mx = (e.clientX - rect.left) * scaleX;
+        const my = (e.clientY - rect.top) * scaleY;
+        if (my > 80 && my < H - 80) {
+            canvas.style.cursor = 'pointer';
+        } else {
+            canvas.style.cursor = 'default';
+        }
+    }
+});
+
+function loop() {
+    game.update();
+    game.draw();
+    requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
