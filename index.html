@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a0a1a">
+<meta name="description" content="赛博朋克霓虹风格小游戏合集 - 俄罗斯方块、2048、贪吃蛇、国际象棋等9款免费在线游戏">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEON ARCADE">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<title>NEON ARCADE - 霓虹小游戏合集</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #0a0a1a;
+    color: #e0e0ff;
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    overflow-y: auto;
+    position: relative;
+    scroll-behavior: smooth;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background:
+        radial-gradient(ellipse at 20% 50%, rgba(0, 240, 255, 0.04) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 50%, rgba(255, 0, 228, 0.04) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.grid-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image:
+        linear-gradient(rgba(0, 240, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.02) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.container {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 60px 20px;
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(13, 13, 36, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 240, 255, 0.2);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 240, 255, 0.4);
+}
+
+.title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #00f0ff, #a855f7, #ff00e4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 40px rgba(0, 240, 255, 0.3));
+    margin-bottom: 6px;
+}
+
+.subtitle {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    letter-spacing: 10px;
+    text-transform: uppercase;
+    color: rgba(0, 240, 255, 0.35);
+    margin-bottom: 48px;
+}
+
+.game-grid {
+    display: flex;
+    gap: 32px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.game-card {
+    width: 280px;
+    background: rgba(13, 13, 36, 0.6);
+    border: 1px solid rgba(0, 240, 255, 0.12);
+    border-radius: 12px;
+    padding: 32px 24px 28px;
+    backdrop-filter: blur(8px);
+    cursor: pointer;
+    transition: all 0.4s ease;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    position: relative;
+    overflow: hidden;
+}
+
+.game-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.5;
+    transition: opacity 0.4s ease;
+}
+
+.game-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-6px);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 30px var(--glow);
+    background: rgba(13, 13, 36, 0.8);
+}
+
+.game-card:hover::before {
+    opacity: 1;
+}
+
+.game-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    display: block;
+    filter: drop-shadow(0 0 20px var(--glow));
+    transition: transform 0.4s ease;
+}
+
+.game-card:hover .game-icon {
+    transform: scale(1.15);
+}
+
+.game-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    color: var(--accent);
+    text-shadow: 0 0 20px var(--glow);
+}
+
+.game-desc {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    color: rgba(224, 224, 255, 0.5);
+    letter-spacing: 1px;
+    line-height: 1.4;
+}
+
+.game-status {
+    display: inline-block;
+    margin-top: 16px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 2px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    text-transform: uppercase;
+}
+
+.game-status.ready {
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    background: rgba(34, 197, 94, 0.08);
+}
+
+.game-status.soon {
+    color: rgba(224, 224, 255, 0.3);
+    border: 1px solid rgba(224, 224, 255, 0.1);
+    background: rgba(224, 224, 255, 0.03);
+}
+
+.install-bar {
+    margin-top: 40px;
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+}
+
+.install-btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 12px 28px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 240, 255, 0.25);
+    background: rgba(0, 240, 255, 0.06);
+    color: #00f0ff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+}
+
+.install-btn:hover {
+    background: rgba(0, 240, 255, 0.12);
+    border-color: rgba(0, 240, 255, 0.5);
+    box-shadow: 0 0 30px rgba(0, 240, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.install-btn.installed {
+    opacity: 0.4;
+    cursor: default;
+    pointer-events: none;
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #22c55e;
+}
+
+.footer {
+    margin-top: 48px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px;
+    color: rgba(0, 240, 255, 0.15);
+    letter-spacing: 4px;
+}
+</style>
+</head>
+<body>
+<div class="grid-overlay"></div>
+
+<div class="container">
+    <div class="title">NEON ARCADE</div>
+    <div class="subtitle">霓 虹 游 戏 合 集</div>
+
+    <div class="game-grid">
+        <a href="tetris/index.html" class="game-card" style="--accent: #00f0ff; --glow: rgba(0,240,255,0.15);">
+            <span class="game-icon">&#x25A6;</span>
+            <div class="game-name">NEON TETRIS</div>
+            <div class="game-desc">经典俄罗斯方块<br>赛博朋克霓虹版</div>
+            <div class="game-status ready">&#x25CF; 可游玩</div>
+        </a>
+        <a href="2048/index.html" class="game-card" style="--accent: #a855f7; --glow: rgba(168,85,247,0.15);">
+            <span class="game-icon">&#x2B1C;</span>
+            <div class="game-name">NEON 2048</div>
+            <div class="game-desc">数字合并益智<br>霓虹发光风格</div>
+            <div class="game-status ready">&#x25CF; 可游玩</div>
+        </a>
+        <a href="snake/index.html" class="game-card" style="--accent: #22c55e; --glow: rgba(34,197,94,0.15);">
+            <span class="game-icon">&#x223F;</span>
+            <div class="game-name">NEON SNAKE</div>
+            <div class="game-desc">经典贪吃蛇<br>霓虹残影拖尾</div>
+            <div class="game-status ready">&#x25CF; 可游玩</div>
+        </a>
+        <a href="flappy/index.html" class="game-card" style="--accent: #ffe600; --glow: rgba(255,230,0,0.15);">
+            <span class="game-icon">&#x25C6;</span>
+            <div class="game-name">NEON FLAPPY</div>
+            <div class="game-desc">霓虹小鸟穿管道<br>点击飞行</div>
+            <div class="game-status ready">&#x25CF; 可游玩</div>
+        </a>
+        <a href="shooter/index.html" class="game-card" style="--accent: #ef4444; --glow: rgba(239,68,68,0.15);">
+            <span class="game-icon">&#x25B6;</span>
+            <div class="game-name">NEON SHOOTER</div>
+            <div class="game-desc">霓虹飞机射击<br>抵御敌机波次</div>
+            <div class="game-status ready">&#x25CF; 可游玩</div>
+        </a>
+        <a href="chess/index.html" class="game-card" style="--accent: #f97316; --glow: rgba(249,115,22,0.15);">
+            <span class="game-icon">&#x265A;</span>
+            <div class="game-name">NEON CHESS</div>
+            <div class="game-desc">国际象棋<br>人机对战</div>
+            <div class="game-status ready">&#x25CF; 可游玩</div>
+        </a>
+        <a href="minesweeper/index.html" class="game-card" style="--accent: #ef4444; --glow: rgba(239,68,68,0.15);">
+            <span class="game-icon">&#x26A0;</span>
+            <div class="game-name">NEON MINE</div>
+            <div class="game-desc">霓虹扫雷<br>经典益智</div>
+            <div class="game-status ready">&#x25CF; 可游玩</div>
+        </a>
+        <a href="match3/index.html" class="game-card" style="--accent: #22d3ee; --glow: rgba(34,211,238,0.15);">
+            <span class="game-icon">&#x2665;</span>
+            <div class="game-name">NEON MATCH-3</div>
+            <div class="game-desc">霓虹消消乐<br>三消连锁</div>
+            <div class="game-status ready">&#x25CF; 可游玩</div>
+        </a>
+        <a href="spaceciv/index.html" class="game-card" style="--accent: #f59e0b; --glow: rgba(245,158,11,0.15);">
+            <span class="game-icon">&#x2606;</span>
+            <div class="game-name">STELLAR CIV</div>
+            <div class="game-desc">太空文明4X策略<br>征服银河系</div>
+            <div class="game-status ready">&#x25CF; 可游玩</div>
+        </a>
+        <div class="game-card" style="--accent: rgba(224,224,255,0.15); --glow: rgba(224,224,255,0.05); opacity: 0.5; cursor: default;">
+            <span class="game-icon">&#x2753;</span>
+            <div class="game-name" style="color: rgba(224,224,255,0.3); text-shadow: none;">更多游戏</div>
+            <div class="game-desc">敬请期待…</div>
+            <div class="game-status soon">即将推出</div>
+        </div>
+    </div>
+
+    <div class="install-bar" id="installBar">
+        <button class="install-btn" id="installBtn" style="display:none">&#x2B07; 安装应用</button>
+        <div class="install-btn" id="installStatus" style="display:none"></div>
+    </div>
+
+    <div class="footer">SOLO &middot; 2026</div>
+</div>
+
+<script>
+(async function() {
+    let installPrompt = null;
+    const installBtn = document.getElementById('installBtn');
+    const installStatus = document.getElementById('installStatus');
+
+    if (!('serviceWorker' in navigator)) {
+        installStatus.style.display = '';
+        installStatus.textContent = '\u26A0 \u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u5b89\u88c5';
+        installStatus.classList.add('installed');
+        return;
+    }
+
+    try {
+        await navigator.serviceWorker.register('/sw.js');
+    } catch (e) {
+        console.warn('Service Worker \u6ce8\u518c\u5931\u8d25:', e);
+    }
+
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+        installStatus.style.display = '';
+        installStatus.textContent = '\u2713 \u5df2\u5b89\u88c5';
+        installStatus.classList.add('installed');
+        return;
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        installPrompt = e;
+        installBtn.style.display = '';
+    });
+
+    window.addEventListener('appinstalled', () => {
+        installBtn.style.display = 'none';
+        installStatus.style.display = '';
+        installStatus.textContent = '\u2713 \u5df2\u5b89\u88c5';
+        installStatus.classList.add('installed');
+        installPrompt = null;
+    });
+
+    installBtn.addEventListener('click', async () => {
+        if (!installPrompt) return;
+        installBtn.textContent = '\u23F3 \u51c6\u5907\u4e2d...';
+        try {
+            installPrompt.prompt();
+            const result = await installPrompt.userChoice;
+            if (result.outcome === 'accepted') {
+                installBtn.style.display = 'none';
+                installStatus.style.display = '';
+                installStatus.textContent = '\u2713 \u5df2\u5b89\u88c5';
+                installStatus.classList.add('installed');
+            } else {
+                installBtn.textContent = '\u2B07 \u5b89\u88c5\u5e94\u7528';
+            }
+        } catch (e) {
+            installBtn.textContent = '\u2B07 \u5b89\u88c5\u5e94\u7528';
+        }
+        installPrompt = null;
+    });
+
+    setTimeout(() => {
+        if (!installPrompt && installBtn.style.display !== 'inline-block') {
+            installStatus.style.display = '';
+            installStatus.textContent = '\u53ef\u4ee5\u5b89\u88c5\u5230\u684c\u9762';
+            installStatus.style.border = '1px solid rgba(0,240,255,0.15)';
+            installStatus.style.color = 'rgba(224,224,255,0.4)';
+            installStatus.style.cursor = 'default';
+            installStatus.style.fontSize = '10px';
+        }
+    }, 5000);
+})();
+</script>
+</body>
+</html>
