@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>霓虹扫雷 - NEON MINESWEEPER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #0a0a1a;
+    color: #e0e0ff;
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background:
+        radial-gradient(ellipse at 30% 50%, rgba(0, 240, 255, 0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 50%, rgba(168, 85, 247, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.grid-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image:
+        linear-gradient(rgba(0, 240, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.02) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.game-wrapper {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+
+.title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #00f0ff, #a855f7, #ff00e4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 30px rgba(0, 240, 255, 0.3));
+}
+
+.title-sub {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    color: rgba(0, 240, 255, 0.4);
+    margin-top: -10px;
+}
+
+.info-bar {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    align-items: stretch;
+}
+
+.info-box {
+    flex: 1;
+    background: rgba(13, 13, 36, 0.8);
+    border: 1px solid rgba(0, 240, 255, 0.15);
+    border-radius: 6px;
+    padding: 8px 12px;
+    text-align: center;
+    backdrop-filter: blur(10px);
+}
+
+.info-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(0, 240, 255, 0.5);
+}
+
+.info-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: #00f0ff;
+    text-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+    line-height: 1.2;
+}
+
+.info-value.high {
+    color: #a855f7;
+    text-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+}
+
+.diff-bar {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+}
+
+.diff-btn {
+    flex: 1;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 8px 6px;
+    background: rgba(13, 13, 36, 0.6);
+    color: rgba(0, 240, 255, 0.5);
+    border: 1px solid rgba(0, 240, 255, 0.15);
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+}
+
+.diff-btn:hover {
+    background: rgba(0, 240, 255, 0.08);
+    border-color: rgba(0, 240, 255, 0.3);
+    color: #00f0ff;
+}
+
+.diff-btn.active {
+    color: #00f0ff;
+    border-color: #00f0ff;
+    background: rgba(0, 240, 255, 0.12);
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
+}
+
+.board-panel {
+    position: relative;
+    border: 2px solid rgba(0, 240, 255, 0.3);
+    border-radius: 8px;
+    box-shadow:
+        0 0 30px rgba(0, 240, 255, 0.08),
+        inset 0 0 30px rgba(0, 240, 255, 0.02);
+    overflow: hidden;
+}
+
+canvas#gameCanvas {
+    display: block;
+    background: #0d0d24;
+    border-radius: 6px;
+}
+
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(5, 5, 20, 0.88);
+    backdrop-filter: blur(6px);
+    border-radius: 6px;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+}
+
+.overlay.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.overlay-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: 6px;
+    margin-bottom: 10px;
+}
+
+.overlay-title.won {
+    background: linear-gradient(135deg, #22c55e, #00f0ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 30px rgba(34, 197, 94, 0.4));
+}
+
+.overlay-title.lost {
+    color: #ef4444;
+    text-shadow: 0 0 40px rgba(239, 68, 68, 0.4);
+}
+
+.overlay-score {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    color: rgba(224, 224, 255, 0.7);
+    margin-bottom: 2px;
+    letter-spacing: 2px;
+}
+
+.overlay-score span {
+    color: #00f0ff;
+    font-size: 18px;
+    text-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+}
+
+.overlay-high {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    color: rgba(168, 85, 247, 0.6);
+    margin-bottom: 18px;
+    letter-spacing: 2px;
+}
+
+.overlay-high span {
+    color: #a855f7;
+    font-weight: 600;
+}
+
+.restart-btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    padding: 10px 28px;
+    background: transparent;
+    color: #00f0ff;
+    border: 2px solid rgba(0, 240, 255, 0.4);
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+}
+
+.restart-btn:hover {
+    background: rgba(0, 240, 255, 0.1);
+    border-color: #00f0ff;
+    box-shadow: 0 0 25px rgba(0, 240, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.controls-hint {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    color: rgba(0, 240, 255, 0.3);
+    letter-spacing: 3px;
+    margin-top: 2px;
+}
+
+.controls-hint span {
+    display: inline-block;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    padding: 2px 6px;
+    border: 1px solid rgba(0, 240, 255, 0.15);
+    border-radius: 3px;
+    color: rgba(0, 240, 255, 0.5);
+    margin: 0 2px;
+}
+</style>
+</head>
+<body>
+<div class="grid-overlay"></div>
+
+<div class="game-wrapper">
+    <div class="title">NEON MINESWEEPER</div>
+    <div class="title-sub">霓 虹 扫 雷</div>
+
+    <div class="info-bar">
+        <div class="info-box">
+            <div class="info-label">Mines</div>
+            <div class="info-value" id="mineCountDisplay">0</div>
+        </div>
+        <div class="info-box">
+            <div class="info-label">Time</div>
+            <div class="info-value" id="timerDisplay">00:00</div>
+        </div>
+        <div class="info-box">
+            <div class="info-label">Best</div>
+            <div class="info-value high" id="highDisplay">--:--</div>
+        </div>
+    </div>
+
+    <div class="diff-bar">
+        <button class="diff-btn active" data-diff="easy">Easy 9×9</button>
+        <button class="diff-btn" data-diff="med">Med 12×12</button>
+        <button class="diff-btn" data-diff="hard">Hard 16×16</button>
+    </div>
+
+    <div class="board-panel">
+        <canvas id="gameCanvas"></canvas>
+        <div class="overlay" id="gameOverOverlay">
+            <div class="overlay-title" id="overlayTitle">GAME OVER</div>
+            <div class="overlay-score" id="overlayTime">用时 <span id="finalTime">00:00</span></div>
+            <div class="overlay-high">最高纪录 <span id="finalHigh">--:--</span></div>
+            <button class="restart-btn" id="restartBtn">重新开始</button>
+        </div>
+    </div>
+
+    <div class="controls-hint">
+        <span>左键</span> 揭开 · <span>右键</span> 标记旗帜 · <span>R</span> 重新开始
+    </div>
+</div>
+
+<script>
+const DIFFICULTIES = {
+    easy: { rows: 9, cols: 9, mines: 10, cellSize: 40, pad: 10 },
+    med: { rows: 12, cols: 12, mines: 30, cellSize: 34, pad: 8 },
+    hard: { rows: 16, cols: 16, mines: 50, cellSize: 28, pad: 8 }
+};
+
+const NUM_COLORS = {
+    1: '#00f0ff',
+    2: '#22c55e',
+    3: '#a855f7',
+    4: '#f97316',
+    5: '#ef4444',
+    6: '#ffe600',
+    7: '#3b82f6',
+    8: '#e879f9'
+};
+
+const LS_KEYS = {
+    easy: 'neonMineEasy',
+    med: 'neonMineMed',
+    hard: 'neonMineHard'
+};
+
+let difficulty = 'easy';
+let rows, cols, totalMines, cellSize, pad;
+let board = [];
+let revealed = [];
+let flagged = [];
+let gameState = 'playing';
+let firstClick = true;
+let flagCount = 0;
+let revealedCount = 0;
+let timer = 0;
+let timerInterval = null;
+let timerStarted = false;
+let redFlashCell = null;
+let redFlashFrame = 0;
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const mineCountDisplay = document.getElementById('mineCountDisplay');
+const timerDisplay = document.getElementById('timerDisplay');
+const highDisplay = document.getElementById('highDisplay');
+const overlay = document.getElementById('gameOverOverlay');
+const overlayTitle = document.getElementById('overlayTitle');
+const finalTime = document.getElementById('finalTime');
+const finalHigh = document.getElementById('finalHigh');
+const restartBtn = document.getElementById('restartBtn');
+const diffBtns = document.querySelectorAll('.diff-btn');
+
+function getConfig() {
+    return DIFFICULTIES[difficulty];
+}
+
+function initGame() {
+    const cfg = getConfig();
+    rows = cfg.rows;
+    cols = cfg.cols;
+    totalMines = cfg.mines;
+    cellSize = cfg.cellSize;
+    pad = cfg.pad;
+
+    canvas.width = cols * cellSize + pad * 2;
+    canvas.height = rows * cellSize + pad * 2;
+
+    board = Array.from({ length: rows }, () => Array(cols).fill(0));
+    revealed = Array.from({ length: rows }, () => Array(cols).fill(false));
+    flagged = Array.from({ length: rows }, () => Array(cols).fill(false));
+    gameState = 'playing';
+    firstClick = true;
+    flagCount = 0;
+    revealedCount = 0;
+    timer = 0;
+    timerStarted = false;
+    redFlashCell = null;
+    redFlashFrame = 0;
+
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+
+    overlay.classList.remove('active');
+    updateInfo();
+    draw();
+}
+
+function placeMines(safeRow, safeCol) {
+    let placed = 0;
+    while (placed < totalMines) {
+        const r = Math.floor(Math.random() * rows);
+        const c = Math.floor(Math.random() * cols);
+        if (board[r][c] === -1) continue;
+        if (Math.abs(r - safeRow) <= 1 && Math.abs(c - safeCol) <= 1) continue;
+        board[r][c] = -1;
+        placed++;
+    }
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            if (board[r][c] === -1) continue;
+            let count = 0;
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    if (dr === 0 && dc === 0) continue;
+                    const nr = r + dr, nc = c + dc;
+                    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && board[nr][nc] === -1) count++;
+                }
+            }
+            board[r][c] = count;
+        }
+    }
+}
+
+function floodFill(row, col) {
+    const stack = [[row, col]];
+    while (stack.length > 0) {
+        const [r, c] = stack.pop();
+        if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
+        if (revealed[r][c] || flagged[r][c]) continue;
+        revealed[r][c] = true;
+        revealedCount++;
+        if (board[r][c] === 0) {
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    if (dr === 0 && dc === 0) continue;
+                    stack.push([r + dr, c + dc]);
+                }
+            }
+        }
+    }
+}
+
+function revealCell(row, col) {
+    if (row < 0 || row >= rows || col < 0 || col >= cols) return;
+    if (revealed[row][col] || flagged[row][col]) return;
+    if (gameState !== 'playing') return;
+
+    if (firstClick) {
+        firstClick = false;
+        placeMines(row, col);
+        if (!timerStarted) {
+            timerStarted = true;
+            timerInterval = setInterval(() => {
+                timer++;
+                updateInfo();
+            }, 1000);
+        }
+    }
+
+    if (board[row][col] === -1) {
+        redFlashCell = { row, col };
+        redFlashFrame = 0;
+        revealAllMines();
+        gameState = 'lost';
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+        draw();
+        showOverlay('lost');
+        return;
+    }
+
+    if (board[row][col] > 0) {
+        revealed[row][col] = true;
+        revealedCount++;
+        draw();
+        checkWin();
+        return;
+    }
+
+    floodFill(row, col);
+    draw();
+    checkWin();
+}
+
+function flagCell(row, col) {
+    if (row < 0 || row >= rows || col < 0 || col >= cols) return;
+    if (revealed[row][col]) return;
+    if (gameState !== 'playing') return;
+
+    flagged[row][col] = !flagged[row][col];
+    flagCount += flagged[row][col] ? 1 : -1;
+    updateInfo();
+    draw();
+}
+
+function revealAllMines() {
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            if (board[r][c] === -1) {
+                revealed[r][c] = true;
+            }
+        }
+    }
+}
+
+function checkWin() {
+    const totalSafe = rows * cols - totalMines;
+    if (revealedCount === totalSafe) {
+        gameState = 'won';
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (board[r][c] === -1) {
+                    flagged[r][c] = true;
+                }
+            }
+        }
+        flagCount = totalMines;
+        updateInfo();
+        saveHighScore();
+        draw();
+        showOverlay('won');
+    }
+}
+
+function saveHighScore() {
+    const key = LS_KEYS[difficulty];
+    const prev = localStorage.getItem(key);
+    if (!prev || timer < parseInt(prev)) {
+        localStorage.setItem(key, timer.toString());
+    }
+}
+
+function getHighScore() {
+    const key = LS_KEYS[difficulty];
+    const val = localStorage.getItem(key);
+    return val ? parseInt(val) : null;
+}
+
+function formatTime(seconds) {
+    const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+    const s = String(seconds % 60).padStart(2, '0');
+    return `${m}:${s}`;
+}
+
+function updateInfo() {
+    const remaining = totalMines - flagCount;
+    mineCountDisplay.textContent = remaining;
+
+    if (timerStarted || timer > 0) {
+        timerDisplay.textContent = formatTime(timer);
+    }
+
+    const hs = getHighScore();
+    highDisplay.textContent = hs !== null ? formatTime(hs) : '--:--';
+}
+
+function showOverlay(state) {
+    if (state === 'won') {
+        overlayTitle.textContent = 'YOU WIN!';
+        overlayTitle.className = 'overlay-title won';
+        finalTime.textContent = formatTime(timer);
+        finalTime.style.color = '#22c55e';
+    } else {
+        overlayTitle.textContent = 'GAME OVER';
+        overlayTitle.className = 'overlay-title lost';
+        finalTime.textContent = formatTime(timer);
+        finalTime.style.color = '#ef4444';
+    }
+    const hs = getHighScore();
+    finalHigh.textContent = hs !== null ? formatTime(hs) : '--:--';
+    overlay.classList.add('active');
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (redFlashCell && gameState === 'lost') {
+        if (redFlashFrame < 10) {
+            redFlashFrame++;
+        }
+    }
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const x = pad + c * cellSize;
+            const y = pad + r * cellSize;
+            const isRevealed = revealed[r][c];
+            const isFlagged = flagged[r][c];
+            const cellVal = board[r][c];
+
+            if (isRevealed) {
+                if (cellVal === -1) {
+                    drawMine(x, y, r, c);
+                } else {
+                    drawRevealedCell(x, y, cellVal);
+                }
+            } else {
+                drawHiddenCell(x, y);
+                if (isFlagged) {
+                    drawFlag(x, y);
+                }
+            }
+        }
+    }
+}
+
+function drawHiddenCell(x, y) {
+    ctx.fillStyle = '#13133a';
+    ctx.fillRect(x, y, cellSize, cellSize);
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.06)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, cellSize, cellSize);
+}
+
+function drawRevealedCell(x, y, val) {
+    ctx.fillStyle = '#171745';
+    ctx.fillRect(x, y, cellSize, cellSize);
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.12)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, cellSize, cellSize);
+
+    if (val > 0) {
+        ctx.shadowColor = NUM_COLORS[val];
+        ctx.shadowBlur = 8;
+        ctx.font = `bold ${Math.floor(cellSize * 0.55)}px 'Orbitron', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = NUM_COLORS[val];
+        ctx.fillText(val, x + cellSize / 2, y + cellSize / 2 + 1);
+        ctx.shadowBlur = 0;
+    }
+}
+
+function drawMine(x, y, row, col) {
+    const isRedFlash = redFlashCell && redFlashCell.row === row && redFlashCell.col === col;
+    if (isRedFlash) {
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.3)';
+        ctx.fillRect(x, y, cellSize, cellSize);
+        ctx.shadowColor = 'rgba(239, 68, 68, 0.6)';
+        ctx.shadowBlur = 20;
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, cellSize, cellSize);
+        ctx.shadowBlur = 0;
+    } else {
+        ctx.fillStyle = '#171745';
+        ctx.fillRect(x, y, cellSize, cellSize);
+    }
+
+    ctx.shadowColor = 'rgba(239, 68, 68, 0.6)';
+    ctx.shadowBlur = isRedFlash ? 25 : 12;
+    const fontSize = Math.floor(cellSize * 0.5);
+    ctx.font = `${fontSize}px 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ef4444';
+    ctx.fillText('💀', x + cellSize / 2, y + cellSize / 2 + 2);
+    ctx.shadowBlur = 0;
+}
+
+function drawFlag(x, y) {
+    ctx.shadowColor = 'rgba(255, 230, 0, 0.5)';
+    ctx.shadowBlur = 10;
+    const fontSize = Math.floor(cellSize * 0.5);
+    ctx.font = `${fontSize}px 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffe600';
+    ctx.fillText('⚑', x + cellSize / 2, y + cellSize / 2 + 2);
+    ctx.shadowBlur = 0;
+}
+
+function getCellFromClick(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mx = (clientX - rect.left) * scaleX;
+    const my = (clientY - rect.top) * scaleY;
+
+    const col = Math.floor((mx - pad) / cellSize);
+    const row = Math.floor((my - pad) / cellSize);
+
+    if (row < 0 || row >= rows || col < 0 || col >= cols) return null;
+    return { row, col };
+}
+
+function handleClick(e) {
+    const cell = getCellFromClick(e.clientX, e.clientY);
+    if (!cell) return;
+    if (gameState === 'won' || gameState === 'lost') return;
+    revealCell(cell.row, cell.col);
+}
+
+function handleContextMenu(e) {
+    e.preventDefault();
+    const cell = getCellFromClick(e.clientX, e.clientY);
+    if (!cell) return;
+    if (gameState === 'won' || gameState === 'lost') return;
+    flagCell(cell.row, cell.col);
+}
+
+function setDifficulty(diff) {
+    if (diff === difficulty && gameState === 'playing') return;
+    difficulty = diff;
+    diffBtns.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.diff === diff);
+    });
+    initGame();
+    updateInfo();
+}
+
+diffBtns.forEach(btn => {
+    btn.addEventListener('click', () => setDifficulty(btn.dataset.diff));
+});
+
+canvas.addEventListener('click', handleClick);
+canvas.addEventListener('contextmenu', handleContextMenu);
+
+restartBtn.addEventListener('click', () => {
+    initGame();
+    updateInfo();
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'r' || e.key === 'R') {
+        initGame();
+        updateInfo();
+    }
+});
+
+initGame();
+</script>
+</body>
+</html>
