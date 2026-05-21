@@ -458,6 +458,9 @@ function evaluateBoard(b) {
     let wPawnDups = 0, bPawnDups = 0;
     let wIsolatedPawns = 0, bIsolatedPawns = 0;
     let wPieceCount = 0, bPieceCount = 0;
+    let wBishops = 0, bBishops = 0;
+    let wKnights = 0, bKnights = 0;
+    let wRooks = 0, bRooks = 0;
 
     for (let r = 0; r < 8; r++)
         for (let c = 0; c < 8; c++) {
@@ -469,11 +472,21 @@ function evaluateBoard(b) {
                 if (isWhite) wPieceCount += val;
                 else bPieceCount += val;
             }
+            if (p.type === 'B') { if (isWhite) wBishops++; else bBishops++; }
+            if (p.type === 'N') { if (isWhite) wKnights++; else bKnights++; }
+            if (p.type === 'R') { if (isWhite) wRooks++; else bRooks++; }
+
             let posScore = 0;
             if (p.type === 'K') {
-                const eg = (wPieceCount + bPieceCount < 3000);
+                const eg = (wPieceCount + bPieceCount < 2500);
                 if (eg) posScore = (isWhite ? KING_ENDGAME[r][c] : KING_ENDGAME[7-r][c]);
                 else posScore = (isWhite ? PST.K[r][c] : PST.K[7-r][c]);
+            } else if (p.type === 'P') {
+                const sq = isWhite ? r : (7 - r);
+                const passed = !hasBlockingPawn(b, p.color, r, c);
+                posScore = (isWhite ? (PST.P?.[r]?.[c] || 0) : (PST.P?.[7-r]?.[c] || 0));
+                if (passed) posScore += sq * sq * 1.5;
+                if (sq >= 5) posScore += (sq - 4) * (sq - 4) * 8;
             } else {
                 posScore = (isWhite ? (PST[p.type]?.[r]?.[c] || 0) : (PST[p.type]?.[7-r]?.[c] || 0));
             }
@@ -481,8 +494,14 @@ function evaluateBoard(b) {
             score += (val + posScore) * multiplier;
         }
 
+    if (wBishops >= 2) score += 30;
+    if (bBishops >= 2) score -= 30;
+
     const wKing = findKing(b, 'w');
     const bKing = findKing(b, 'b');
+
+    const totalNonKing = wPieceCount + bPieceCount;
+    const isEndgame = totalNonKing < 2500;
 
     for (let r = 0; r < 8; r++)
         for (let c = 0; c < 8; c++) {
@@ -491,34 +510,79 @@ function evaluateBoard(b) {
             const lm = legalMovesFor(b, r, c);
             if (p.color === 'w') wMobility += lm.length;
             else bMobility += lm.length;
+
+            if (p.type === 'R') {
+                let openFile = true;
+                for (let r2 = 0; r2 < 8; r2++)
+                    if (b[r2][c] && b[r2][c].type === 'P') { openFile = false; break; }
+                if (openFile) {
+                    if (p.color === 'w') score += 15;
+                    else score -= 15;
+                } else {
+                    let semiOpen = true;
+                    for (let r2 = 0; r2 < 8; r2++)
+                        if (b[r2][c] && b[r2][c].type === 'P' && b[r2][c].color !== p.color) { semiOpen = false; break; }
+                    if (semiOpen) {
+                        if (p.color === 'w') score += 8;
+                        else score -= 8;
+                    }
+                }
+            }
+
+            if (p.type === 'N') {
+                let onOutpost = false;
+                const oppColor = p.color === 'w' ? 'b' : 'w';
+                if ((p.color === 'w' && r >= 4) || (p.color === 'b' && r <= 3)) {
+                    let canBeAttacked = false;
+                    for (let r2 = 0; r2 < 8; r2++)
+                        for (let c2 = 0; c2 < 8; c2++)
+                            if (b[r2][c2] && b[r2][c2].color === oppColor && b[r2][c2].type === 'P') {
+                                if (oppColor === 'b' && Math.abs(r2 - r) === 1 && Math.abs(c2 - c) === 1) canBeAttacked = true;
+                                if (oppColor === 'w' && Math.abs(r2 - r) === 1 && Math.abs(c2 - c) === 1) canBeAttacked = true;
+                            }
+                    if (!canBeAttacked) onOutpost = true;
+                }
+                if (onOutpost) {
+                    if (p.color === 'w') score += 25;
+                    else score -= 25;
+                }
+            }
         }
 
-    const mobFactor = 5;
+    const mobFactor = isEndgame ? 8 : 5;
     score += (wMobility - bMobility) * mobFactor;
 
     if (wKing) {
         const kr = wKing.row, kc = wKing.col;
-        for (let dr = -2; dr <= 2; dr++)
+        let wKingShield = 0;
+        for (let dr = -1; dr <= 1; dr++)
             for (let dc = -2; dc <= 2; dc++) {
                 const nr = kr + dr, nc = kc + dc;
                 if (!inBounds(nr, nc)) continue;
                 const p = b[nr][nc];
-                if (p && p.color === 'w' && p.type === 'P') wKingZone += 10;
-                if (p && p.color === 'b' && (p.type === 'Q' || p.type === 'R'))
-                    wKingZone -= 5;
+                if (p && p.color === 'w' && p.type === 'P') wKingZone += 12;
+                if (p && p.color === 'w' && (p.type === 'B' || p.type === 'N')) wKingShield += 5;
             }
+        wKingZone += wKingShield;
+        if (!isEndgame && wKing && wKing.row < 6) {
+            if (wKing.row > 0) score -= 15;
+        }
     }
     if (bKing) {
         const kr = bKing.row, kc = bKing.col;
-        for (let dr = -2; dr <= 2; dr++)
+        let bKingShield = 0;
+        for (let dr = -1; dr <= 1; dr++)
             for (let dc = -2; dc <= 2; dc++) {
                 const nr = kr + dr, nc = kc + dc;
                 if (!inBounds(nr, nc)) continue;
                 const p = b[nr][nc];
-                if (p && p.color === 'b' && p.type === 'P') bKingZone += 10;
-                if (p && p.color === 'w' && (p.type === 'Q' || p.type === 'R'))
-                    bKingZone -= 5;
+                if (p && p.color === 'b' && p.type === 'P') bKingZone += 12;
+                if (p && p.color === 'b' && (p.type === 'B' || p.type === 'N')) bKingShield += 5;
             }
+        bKingZone += bKingShield;
+        if (!isEndgame && bKing && bKing.row > 1) {
+            if (bKing.row < 7) score += 15;
+        }
     }
     score += (wKingZone - bKingZone) * 2;
 
@@ -535,21 +599,38 @@ function evaluateBoard(b) {
         const mult = color === 'w' ? -1 : 1;
         for (let c = 0; c < 8; c++) {
             if (pawnFiles[color][c] > 1) {
-                if (color === 'w') wPawnDups += (pawnFiles[color][c] - 1) * 15;
-                else bPawnDups += (pawnFiles[color][c] - 1) * 15;
+                const penalty = (pawnFiles[color][c] - 1) * 18;
+                if (color === 'w') wPawnDups += penalty;
+                else bPawnDups += penalty;
             }
             if (pawnFiles[color][c] > 0) {
                 const hasNeighbor = (c > 0 && pawnFiles[color][c-1]) || (c < 7 && pawnFiles[color][c+1]);
                 if (!hasNeighbor) {
-                    if (color === 'w') wIsolatedPawns += 15;
-                    else bIsolatedPawns += 15;
+                    if (color === 'w') wIsolatedPawns += 20;
+                    else bIsolatedPawns += 20;
                 }
+                let chainBonus = 0;
+                if (c > 0 && pawnFiles[color][c-1]) chainBonus += 5;
+                if (c < 7 && pawnFiles[color][c+1]) chainBonus += 5;
+                score += chainBonus * mult;
             }
         }
     }
     score += (bPawnDups - wPawnDups) + (bIsolatedPawns - wIsolatedPawns);
 
     return score;
+}
+
+function hasBlockingPawn(b, color, row, col) {
+    const start = color === 'w' ? row - 1 : row + 1;
+    const end = color === 'w' ? 0 : 7;
+    const step = color === 'w' ? -1 : 1;
+    for (let r = start; color === 'w' ? r >= end : r <= end; r += step) {
+        if (b[r][col] && b[r][col].type === 'P' && b[r][col].color !== color) return true;
+        if (col > 0 && b[r][col-1] && b[r][col-1].type === 'P' && b[r][col-1].color !== color) return true;
+        if (col < 7 && b[r][col+1] && b[r][col+1].type === 'P' && b[r][col+1].color !== color) return true;
+    }
+    return false;
 }
 
 function quiescenceSearch(b, alpha, beta, isMaximizing, aiColor, startTime, timeLimit) {
@@ -584,7 +665,7 @@ function quiescenceSearch(b, alpha, beta, isMaximizing, aiColor, startTime, time
         for (const m of captures) {
             const result = makeMove(b, m.fromR, m.fromC, m.toR, m.toC);
             if (!result) continue;
-            const eval2 = quiescenceSearch(result.board, alpha, beta, false, aiColor);
+            const eval2 = quiescenceSearch(result.board, alpha, beta, false, aiColor, startTime, timeLimit);
             maxEval = Math.max(maxEval, eval2);
             alpha = Math.max(alpha, eval2);
             if (beta <= alpha) break;
@@ -595,7 +676,7 @@ function quiescenceSearch(b, alpha, beta, isMaximizing, aiColor, startTime, time
         for (const m of captures) {
             const result = makeMove(b, m.fromR, m.fromC, m.toR, m.toC);
             if (!result) continue;
-            const eval2 = quiescenceSearch(result.board, alpha, beta, true, aiColor);
+            const eval2 = quiescenceSearch(result.board, alpha, beta, true, aiColor, startTime, timeLimit);
             minEval = Math.min(minEval, eval2);
             beta = Math.min(beta, eval2);
             if (beta <= alpha) break;
@@ -609,9 +690,20 @@ function minimax(b, depth, alpha, beta, isMaximizing, aiColor, startTime, timeLi
     const currentColor = isMaximizing ? aiColor : humanColor;
     if (startTime && performance.now() - startTime > timeLimit) return evaluateBoard(b);
     const over = isGameOver(b, currentColor);
-    if (over === 'checkmate') return isMaximizing ? -99999 + (4-depth) : 99999 - (4-depth);
+    if (over === 'checkmate') {
+        const mateDepth = 100 - depth;
+        return isMaximizing ? -99999 + mateDepth : 99999 - mateDepth;
+    }
     if (over === 'stalemate') return 0;
+
     if (depth === 0) return quiescenceSearch(b, alpha, beta, isMaximizing, aiColor, startTime, timeLimit);
+
+    if (depth >= 3) {
+        const razorMargin = 200 + depth * 100;
+        const quickEval = evaluateBoard(b);
+        if (isMaximizing && quickEval + razorMargin < alpha) return quiescenceSearch(b, alpha - razorMargin, beta, isMaximizing, aiColor, startTime, timeLimit);
+        if (!isMaximizing && quickEval - razorMargin > beta) return quiescenceSearch(b, alpha, beta + razorMargin, isMaximizing, aiColor, startTime, timeLimit);
+    }
 
     let moves = [];
     for (let r = 0; r < 8; r++)
@@ -659,96 +751,131 @@ function aiMove() {
     if (aiThinking) return;
     aiThinking = true;
     const aiColor = 'b';
+    const humanColor = 'w';
     const startTime = performance.now();
-    const TIME_LIMIT = 800;
+    const TIME_LIMIT = 3000;
     let bestMove = null;
+    let bestEvalOverall = -Infinity;
+    let completedDepth = 0;
+    let totalPieces = 0;
 
-    (function search(initialMoves) {
-        if (performance.now() - startTime > TIME_LIMIT) { finalize(bestMove); return; }
+    for (let r = 0; r < 8; r++)
+        for (let c = 0; c < 8; c++)
+            if (board[r][c]) totalPieces++;
 
-        let bestAtDepth = bestMove;
-        let bestEval = -Infinity;
+    const maxDepth = Math.min(8, totalPieces < 8 ? 8 : totalPieces < 16 ? 7 : 6);
 
-        for (const m of initialMoves) {
+    let orderedRootMoves = [];
+    for (let r = 0; r < 8; r++)
+        for (let c = 0; c < 8; c++) {
+            const p = board[r][c];
+            if (!p || p.color !== aiColor) continue;
+            const lm = legalMovesFor(board, r, c);
+            for (const m of lm) {
+                const captured = board[m.row][m.col];
+                const capturedVal = captured ? PIECE_VALUES[captured.type] : 0;
+                const attackerVal = PIECE_VALUES[p.type] || 0;
+                const mvvLva = captured ? capturedVal * 10 - attackerVal : 0;
+                const pstBonus = (PST[p.type]?.[m.row]?.[m.col] || 0) - (PST[p.type]?.[r]?.[c] || 0);
+                orderedRootMoves.push({ fromR: r, fromC: c, toR: m.row, toC: m.col, score: mvvLva + pstBonus * 0.1 });
+            }
+        }
+    orderedRootMoves.sort((a, b2) => b2.score - a.score);
+
+    let prevBestMove = null;
+    let bestMoveStable = false;
+
+    function checkTime() {
+        return performance.now() - startTime > TIME_LIMIT;
+    }
+
+    for (let depth = 2; depth <= maxDepth; depth++) {
+        if (checkTime()) break;
+        if (bestMoveStable && depth > 5) break;
+
+        let bestAtDepth = null;
+        let bestEvalAtDepth = -Infinity;
+        let alpha = -Infinity;
+        let beta = Infinity;
+
+        const searchOrder = [...orderedRootMoves];
+        for (let i = 0; i < searchOrder.length; i++) {
+            if (checkTime()) break;
+            const m = searchOrder[i];
             const result = makeMove(board, m.fromR, m.fromC, m.toR, m.toC);
             if (!result) continue;
-            const eval2 = minimax(result.board, 2, -Infinity, Infinity, false, aiColor, startTime, TIME_LIMIT - 100);
-            if (eval2 > bestEval) { bestEval = eval2; bestAtDepth = m; }
-            if (performance.now() - startTime > TIME_LIMIT) { finalize(bestAtDepth); return; }
-        }
 
-        bestMove = bestAtDepth || bestMove;
-
-        if (performance.now() - startTime < TIME_LIMIT && bestMove) {
-            let deeperMoves = [];
-            for (let r = 0; r < 8; r++)
-                for (let c = 0; c < 8; c++) {
-                    const p = board[r][c];
-                    if (!p || p.color !== aiColor) continue;
-                    const lm = legalMovesFor(board, r, c);
-                    for (const m of lm) {
-                        const captured = board[m.row][m.col];
-                        const capturedVal = captured ? PIECE_VALUES[captured.type] : 0;
-                        deeperMoves.push({ fromR: r, fromC: c, toR: m.row, toC: m.col, score: capturedVal });
+            const window = (i === 0 || depth <= 3) ? Infinity : 50;
+            let evalScore;
+            if (i === 0) {
+                evalScore = -minimax(result.board, depth - 1, -beta, -alpha, false, aiColor, startTime, TIME_LIMIT);
+            } else if (window < Infinity) {
+                evalScore = -minimax(result.board, depth - 1, -alpha - window, -alpha, false, aiColor, startTime, TIME_LIMIT);
+                if (evalScore > alpha && evalScore < alpha + window) {
+                    const timeLeft = TIME_LIMIT - (performance.now() - startTime);
+                    if (timeLeft > 500) {
+                        evalScore = -minimax(result.board, depth - 1, -Infinity, -alpha, false, aiColor, startTime, TIME_LIMIT);
                     }
                 }
-            deeperMoves.sort((a, b2) => b2.score - a.score);
-            setTimeout(() => search(deeperMoves), 0);
-        } else {
-            finalize(bestMove);
-        }
-    })(getAllMoves(aiColor));
-
-    function getAllMoves(color) {
-        let moves = [];
-        for (let r = 0; r < 8; r++)
-            for (let c = 0; c < 8; c++) {
-                const p = board[r][c];
-                if (!p || p.color !== color) continue;
-                const lm = legalMovesFor(board, r, c);
-                for (const m of lm) {
-                    const captured = board[m.row][m.col];
-                    const capturedVal = captured ? PIECE_VALUES[captured.type] : 0;
-                    const attackerVal = PIECE_VALUES[p.type] || 0;
-                    moves.push({ fromR: r, fromC: c, toR: m.row, toC: m.col, score: capturedVal * 10 - attackerVal });
-                }
+            } else {
+                evalScore = -minimax(result.board, depth - 1, -beta, -alpha, false, aiColor, startTime, TIME_LIMIT);
             }
-        moves.sort((a, b2) => b2.score - a.score);
-        return moves;
+
+            searchOrder[i].evalScore = evalScore;
+            if (evalScore > bestEvalAtDepth) {
+                bestEvalAtDepth = evalScore;
+                bestAtDepth = m;
+            }
+            if (evalScore > alpha) alpha = evalScore;
+            if (checkTime()) break;
+        }
+
+        searchOrder.sort((a, b2) => (b2.evalScore || -99999) - (a.evalScore || -99999));
+        orderedRootMoves = searchOrder;
+
+        if (bestAtDepth && !checkTime()) {
+            bestMove = bestAtDepth;
+            bestEvalOverall = bestEvalAtDepth;
+            completedDepth = depth;
+
+            if (prevBestMove && bestAtDepth.fromR === prevBestMove.fromR && bestAtDepth.fromC === prevBestMove.fromC &&
+                bestAtDepth.toR === prevBestMove.toR && bestAtDepth.toC === prevBestMove.toC) {
+                if (depth >= 4) bestMoveStable = true;
+            }
+            prevBestMove = bestAtDepth;
+        }
     }
 
-    function finalize(move) {
-        if (move) {
-            const result = makeMove(board, move.fromR, move.fromC, move.toR, move.toC);
-            if (result) {
-                board = result.board;
-                if (result.moveData.castle) {
-                    const side = result.moveData.castle;
-                    if (side === 'K' || side === 'k') castlingRights[side === 'K' ? 'K' : 'k'] = false;
-                    if (side === 'Q' || side === 'q') castlingRights[side === 'Q' ? 'Q' : 'q'] = false;
-                }
-                const p2 = board[move.toR][move.toC];
-                if (p2 && p2.type === 'K') { castlingRights[p2.color === 'w' ? 'K' : 'k'] = false; castlingRights[p2.color === 'w' ? 'Q' : 'q'] = false; }
-                if (p2 && p2.type === 'R') {
-                    if (move.fromR === 7 && move.fromC === 7) castlingRights.K = false;
-                    if (move.fromR === 7 && move.fromC === 0) castlingRights.Q = false;
-                    if (move.fromR === 0 && move.fromC === 7) castlingRights.k = false;
-                    if (move.fromR === 0 && move.fromC === 0) castlingRights.q = false;
-                }
-                if (result.moveData.enPassant) { enPassant = null; }
-                else if (p2 && p2.type === 'P' && Math.abs(move.toR - move.fromR) === 2)
-                    enPassant = { row: (move.fromR + move.toR) / 2, col: move.fromC };
-                else enPassant = null;
-                turn = 'w';
-                moveCount++;
-                selected = null;
-                legalMoves = [];
-                checkGameState();
+    if (bestMove) {
+        const result = makeMove(board, bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC);
+        if (result) {
+            board = result.board;
+            if (result.moveData.castle) {
+                const side = result.moveData.castle;
+                if (side === 'K' || side === 'k') castlingRights[side === 'K' ? 'K' : 'k'] = false;
+                if (side === 'Q' || side === 'q') castlingRights[side === 'Q' ? 'Q' : 'q'] = false;
             }
+            const p2 = board[bestMove.toR][bestMove.toC];
+            if (p2 && p2.type === 'K') { castlingRights[p2.color === 'w' ? 'K' : 'k'] = false; castlingRights[p2.color === 'w' ? 'Q' : 'q'] = false; }
+            if (p2 && p2.type === 'R') {
+                if (bestMove.fromR === 7 && bestMove.fromC === 7) castlingRights.K = false;
+                if (bestMove.fromR === 7 && bestMove.fromC === 0) castlingRights.Q = false;
+                if (bestMove.fromR === 0 && bestMove.fromC === 7) castlingRights.k = false;
+                if (bestMove.fromR === 0 && bestMove.fromC === 0) castlingRights.q = false;
+            }
+            if (result.moveData.enPassant) { enPassant = null; }
+            else if (p2 && p2.type === 'P' && Math.abs(bestMove.toR - bestMove.fromR) === 2)
+                enPassant = { row: (bestMove.fromR + bestMove.toR) / 2, col: bestMove.fromC };
+            else enPassant = null;
+            turn = 'w';
+            moveCount++;
+            selected = null;
+            legalMoves = [];
+            checkGameState();
         }
-        aiThinking = false;
-        draw();
     }
+    aiThinking = false;
+    draw();
 }
 function handleClick(row, col) {
     if (aiThinking || (gameState !== 'playing' && gameState !== 'check') || turn !== 'w') return;
