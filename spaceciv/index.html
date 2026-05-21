@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STELLAR CIV - 太空文明</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;color:#e0e0ff;font-family:'Rajdhani',sans-serif;overflow:hidden;height:100vh;width:100vw;user-select:none}
+#game-container{display:flex;flex-direction:column;height:100vh;width:100vw}
+#header{display:flex;align-items:center;justify-content:space-between;padding:6px 20px;background:linear-gradient(180deg,#0f0f2a,#0a0a1a);border-bottom:1px solid rgba(0,240,255,0.2);min-height:44px;flex-shrink:0;z-index:10}
+#header .title{font-family:'Orbitron',sans-serif;font-size:20px;font-weight:900;background:linear-gradient(90deg,#00f0ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-shadow:0 0 20px rgba(0,240,255,0.3)}
+#header .turn-info{font-size:14px;color:#8888aa;font-weight:600}
+#header .turn-info span{color:#00f0ff}
+#header .player-info{font-size:14px;color:#8888aa}
+#header .player-info .color-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+#header .res-bar{display:flex;gap:14px;font-size:13px;font-weight:600}
+#header .res-bar .res-item{display:flex;align-items:center;gap:4px}
+#header .res-bar .res-item .icon{font-size:15px}
+#map-area{flex:1;position:relative;overflow:hidden;min-height:0}
+#galaxy-canvas{width:100%;height:100%;display:block;cursor:pointer}
+#bottom-panel{display:flex;align-items:center;justify-content:space-between;padding:6px 16px;background:linear-gradient(0deg,#0f0f2a,#0a0a1a);border-top:1px solid rgba(0,240,255,0.15);min-height:38px;flex-shrink:0;z-index:10;gap:8px}
+#bottom-panel .info-text{font-size:13px;color:#8888aa;flex:1;min-width:0}
+#bottom-panel .info-text span{color:#00f0ff}
+#bottom-panel .btn-group{display:flex;gap:8px;flex-shrink:0}
+#bottom-panel .btn-group button,.modal-btn{padding:5px 16px;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;border:1px solid rgba(0,240,255,0.3);border-radius:4px;cursor:pointer;transition:all .2s;background:rgba(0,240,255,0.08);color:#00f0ff}
+#bottom-panel .btn-group button:hover,.modal-btn:hover{background:rgba(0,240,255,0.2);border-color:#00f0ff;box-shadow:0 0 12px rgba(0,240,255,0.2)}
+#bottom-panel .btn-group button:active{transform:scale(0.97)}
+#bottom-panel .btn-group button.primary{background:rgba(0,240,255,0.2);border-color:#00f0ff}
+#bottom-panel .btn-group button.primary:hover{background:rgba(0,240,255,0.35)}
+#bottom-panel .btn-group button.danger{color:#ef4444;border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.08)}
+#bottom-panel .btn-group button.danger:hover{background:rgba(239,68,68,0.2);border-color:#ef4444}
+#bottom-panel .btn-group button.warning{color:#f59e0b;border-color:rgba(245,158,11,0.3);background:rgba(245,158,11,0.08)}
+#bottom-panel .btn-group button.warning:hover{background:rgba(245,158,11,0.2);border-color:#f59e0b}
+button:disabled{opacity:0.3;cursor:not-allowed!important}
+#side-panel{position:absolute;right:0;top:0;bottom:0;width:340px;background:rgba(10,10,30,0.95);border-left:1px solid rgba(0,240,255,0.15);backdrop-filter:blur(10px);transform:translateX(100%);transition:transform .3s ease;z-index:20;display:flex;flex-direction:column;overflow:hidden}
+#side-panel.open{transform:translateX(0)}
+#side-panel .panel-header{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid rgba(0,240,255,0.1);flex-shrink:0}
+#side-panel .panel-header h3{font-family:'Orbitron',sans-serif;font-size:14px;color:#00f0ff}
+#side-panel .panel-header .close-btn{background:none;border:none;color:#666;font-size:20px;cursor:pointer;padding:0 4px}
+#side-panel .panel-header .close-btn:hover{color:#00f0ff}
+#side-panel .panel-body{flex:1;overflow-y:auto;padding:12px 16px}
+#side-panel .panel-body::-webkit-scrollbar{width:4px}
+#side-panel .panel-body::-webkit-scrollbar-track{background:transparent}
+#side-panel .panel-body::-webkit-scrollbar-thumb{background:rgba(0,240,255,0.2);border-radius:2px}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-overlay.hidden{display:none}
+.modal-box{background:#111125;border:1px solid rgba(0,240,255,0.2);border-radius:8px;padding:24px;min-width:360px;max-width:600px;max-height:80vh;overflow-y:auto;box-shadow:0 0 40px rgba(0,240,255,0.1)}
+.modal-box h2{font-family:'Orbitron',sans-serif;font-size:16px;color:#00f0ff;margin-bottom:16px;text-align:center}
+.modal-box .modal-body{font-size:14px;line-height:1.6;color:#ccccee}
+.modal-box .modal-footer{display:flex;justify-content:center;gap:12px;margin-top:16px}
+.tech-tree{display:flex;flex-direction:column;gap:16px}
+.tech-category h4{font-size:14px;color:#a855f7;margin-bottom:8px;font-weight:700}
+.tech-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(0,240,255,0.04);border:1px solid rgba(0,240,255,0.1);border-radius:4px;margin-bottom:4px;cursor:pointer;transition:all .2s}
+.tech-item:hover{border-color:rgba(0,240,255,0.3)}
+.tech-item.researched{border-color:rgba(34,197,94,0.3);background:rgba(34,197,94,0.05)}
+.tech-item.researched .tech-name{color:#22c55e}
+.tech-item.available{border-color:rgba(0,240,255,0.3);background:rgba(0,240,255,0.08)}
+.tech-item.locked{opacity:0.4}
+.tech-item .tech-name{font-weight:600;font-size:13px}
+.tech-item .tech-cost{font-size:11px;color:#8888aa}
+.tech-item .tech-progress{font-size:11px;color:#f59e0b}
+.tech-item.researching{border-color:#f59e0b;background:rgba(245,158,11,0.08)}
+.tech-item.researching .tech-name{color:#f59e0b}
+.diplo-card{background:rgba(0,240,255,0.04);border:1px solid rgba(0,240,255,0.1);border-radius:4px;padding:10px 12px;margin-bottom:8px}
+.diplo-card .diplo-name{font-weight:700;font-size:14px;margin-bottom:4px}
+.diplo-card .diplo-status{font-size:12px;color:#8888aa}
+.diplo-card .diplo-actions{display:flex;gap:6px;margin-top:8px}
+.diplo-card .diplo-actions button{padding:3px 10px;font-size:12px;font-family:'Rajdhani',sans-serif;font-weight:700;border-radius:3px;cursor:pointer;border:1px solid rgba(0,240,255,0.2);background:rgba(0,240,255,0.06);color:#00f0ff;transition:all .2s}
+.diplo-card .diplo-actions button:hover{background:rgba(0,240,255,0.15)}
+.diplo-card .diplo-actions button.war-btn{color:#ef4444;border-color:rgba(239,68,68,0.3)}
+.diplo-card .diplo-actions button.war-btn:hover{background:rgba(239,68,68,0.15)}
+.empire-stat{display:flex;justify-content:space-between;padding:6px 8px;font-size:13px;border-bottom:1px solid rgba(0,240,255,0.05)}
+.empire-stat .label{color:#8888aa}
+.empire-stat .value{color:#e0e0ff;font-weight:600}
+.system-tooltip{font-size:13px;line-height:1.5}
+.system-tooltip .st-name{font-family:'Orbitron',sans-serif;font-size:15px;color:#00f0ff;margin-bottom:6px}
+.system-tooltip .st-owner{font-size:12px;margin-bottom:4px}
+.system-tooltip .st-planet{padding:6px 8px;background:rgba(0,240,255,0.04);border-radius:3px;margin-bottom:4px;border-left:2px solid rgba(0,240,255,0.2)}
+.system-tooltip .st-planet .pl-name{font-weight:600;font-size:13px}
+.system-tooltip .st-planet .pl-info{font-size:11px;color:#8888aa}
+.system-tooltip .st-fleet{padding:6px 8px;background:rgba(168,85,247,0.06);border-radius:3px;margin-bottom:4px;border-left:2px solid rgba(168,85,247,0.3)}
+.system-tooltip .st-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.system-tooltip .st-actions button{padding:4px 14px;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;border-radius:3px;cursor:pointer;border:1px solid rgba(0,240,255,0.2);background:rgba(0,240,255,0.08);color:#00f0ff;transition:all .2s}
+.system-tooltip .st-actions button:hover{background:rgba(0,240,255,0.2)}
+.system-tooltip .st-actions button.small{font-size:11px;padding:3px 10px}
+.system-tooltip .st-buildings{margin-top:4px}
+.system-tooltip .st-buildings .bld-item{font-size:11px;color:#22c55e;padding:1px 4px;display:inline-block;margin:1px}
+.system-tooltip .st-building-queue{font-size:11px;color:#f59e0b;margin-top:4px}
+.event-log{position:absolute;left:12px;bottom:12px;max-width:300px;z-index:5;pointer-events:none}
+.event-log .event-msg{padding:4px 10px;background:rgba(0,0,0,0.6);border-left:2px solid #00f0ff;margin-bottom:3px;font-size:12px;color:#aaaacc;animation:fadeIn .3s, fadeOut .5s 3.5s forwards;border-radius:0 3px 3px 0}
+.event-log .event-msg.combat{border-left-color:#ef4444}
+.event-log .event-msg.important{border-left-color:#f59e0b;color:#e0e0ff}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+@keyframes fadeOut{to{opacity:0;transform:translateY(-10px)}}
+.notification{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:rgba(10,10,30,0.95);border:1px solid #00f0ff;border-radius:6px;padding:12px 24px;z-index:200;font-family:'Orbitron',sans-serif;font-size:14px;color:#00f0ff;box-shadow:0 0 30px rgba(0,240,255,0.2);animation:notifIn .3s;text-align:center;pointer-events:none}
+.notification .notif-sub{font-family:'Rajdhani',sans-serif;font-size:12px;color:#8888aa;margin-top:4px}
+@keyframes notifIn{from{opacity:0;transform:translateX(-50%) translateY(-20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(0,240,255,0.2);border-radius:2px}
+.game-over-box{text-align:center}
+.game-over-box .go-icon{font-size:48px;margin-bottom:8px}
+.game-over-box h2{font-family:'Orbitron',sans-serif;font-size:22px;margin-bottom:8px}
+.game-over-box .go-desc{font-size:14px;color:#8888aa;margin-bottom:16px}
+.game-over-box .go-stats{text-align:left;font-size:13px;color:#ccccee;margin-bottom:16px;line-height:1.8}
+.welcome-box{text-align:center}
+.welcome-box h1{font-family:'Orbitron',sans-serif;font-size:24px;background:linear-gradient(90deg,#00f0ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+.welcome-box .sub{font-size:14px;color:#6666aa;margin-bottom:16px}
+.welcome-box .welcome-desc{font-size:13px;color:#aaaacc;line-height:1.7;margin-bottom:16px;text-align:left}
+.welcome-box .welcome-desc span{color:#00f0ff}
+.welcome-box .diff-select{display:flex;gap:10px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
+.welcome-box .diff-select button{padding:8px 20px;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;border:1px solid rgba(0,240,255,0.2);border-radius:4px;cursor:pointer;background:rgba(0,240,255,0.06);color:#8888aa;transition:all .2s;min-width:90px}
+.welcome-box .diff-select button:hover{border-color:#00f0ff;color:#00f0ff;background:rgba(0,240,255,0.1)}
+.welcome-box .diff-select button.selected{background:rgba(0,240,255,0.15);border-color:#00f0ff;color:#00f0ff;box-shadow:0 0 10px rgba(0,240,255,0.15)}
+.welcome-box .civ-pick{display:flex;gap:8px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
+.welcome-box .civ-pick button{padding:6px 14px;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;border:1px solid rgba(255,255,255,0.1);border-radius:4px;cursor:pointer;background:rgba(0,240,255,0.04);color:#8888aa;transition:all .2s}
+.welcome-box .civ-pick button:hover{border-color:var(--civ-color);color:var(--civ-color);background:rgba(0,240,255,0.08)}
+.welcome-box .civ-pick button.selected{border-color:var(--civ-color);color:var(--civ-color);background:rgba(0,240,255,0.1)}
+.welcome-box .start-btn{padding:10px 40px;font-family:'Orbitron',sans-serif;font-size:16px;font-weight:700;border:1px solid #00f0ff;border-radius:6px;cursor:pointer;background:rgba(0,240,255,0.15);color:#00f0ff;transition:all .2s}
+.welcome-box .start-btn:hover{background:rgba(0,240,255,0.3);box-shadow:0 0 20px rgba(0,240,255,0.2)}
+.welcome-box .start-btn:active{transform:scale(0.97)}
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <div id="header">
+    <div class="title">STELLAR CIV</div>
+    <div class="turn-info">回合 <span id="turn-num">1</span></div>
+    <div class="player-info">
+      <span class="color-dot" id="player-dot" style="background:#00f0ff"></span>
+      <span id="player-name">人类联邦</span>
+    </div>
+    <div class="res-bar">
+      <div class="res-item"><span class="icon">&#x26CF;</span><span id="res-min">0</span></div>
+      <div class="res-item"><span class="icon">&#x26A1;</span><span id="res-ene">0</span></div>
+      <div class="res-item"><span class="icon">&#x1F33E;</span><span id="res-food">0</span></div>
+      <div class="res-item"><span class="icon">&#x1F52C;</span><span id="res-sci">0</span></div>
+    </div>
+  </div>
+  <div id="map-area">
+    <canvas id="galaxy-canvas"></canvas>
+    <div id="side-panel">
+      <div class="panel-header">
+        <h3 id="panel-title">信息面板</h3>
+        <button class="close-btn" onclick="closeSidePanel()">&times;</button>
+      </div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>
+    <div class="event-log" id="event-log"></div>
+  </div>
+  <div id="bottom-panel">
+    <div class="info-text" id="status-text">点击星系查看详情 · 右键移动舰队</div>
+    <div class="btn-group">
+      <button onclick="openTechTree()" id="btn-tech">&#x1F52C; 科技</button>
+      <button onclick="openDiplomacy()" id="btn-diplo">&#x1F91D; 外交</button>
+      <button onclick="openEmpire()" id="btn-empire">&#x1F4CA; 帝国</button>
+      <button class="primary" onclick="endTurn()" id="btn-endturn">&#x23ED; 结束回合</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="modal-overlay">
+  <div class="modal-box" id="modal-box"></div>
+</div>
+
+<script>
+const CIV_TRAITS = {
+  militaristic: { name:'军事帝国', desc:'舰队攻击+20%', bonus:'military', color:'#ef4444' },
+  scientific:   { name:'科技文明', desc:'科研+25%', bonus:'science', color:'#22d3ee' },
+  economic:     { name:'商业联盟', desc:'资源产量+15%', bonus:'economy', color:'#f59e0b' },
+  adaptive:     { name:'适应种族', desc:'殖民速度翻倍', bonus:'adaptive', color:'#22c55e' },
+};
+const CIV_NAMES = [
+  { name:'人类联邦', trait:'adaptive', color:'#00f0ff' },
+  { name:'泽尔格帝国', trait:'militaristic', color:'#ef4444' },
+  { name:'先驱议会', trait:'scientific', color:'#22d3ee' },
+  { name:'星云商会', trait:'economic', color:'#f59e0b' },
+  { name:'虚空行者', trait:'militaristic', color:'#a855f7' },
+];
+const PLANET_NAMES = ['盖亚','泰坦','伊甸','新世界','曙光','极光','翠绿','蔚蓝','琥珀','翡翠','苍穹','玄黄','瑞光','晨星','暮光'];
+const SYSTEM_NAMES = ['阿尔法','贝塔','伽马','德尔塔','伊普西龙','泽塔','伊塔','西塔','约塔','卡帕',
+  '兰布达','谬','纽','克西','奥米克戎','派','柔','西格玛','陶','宇普西龙',
+  '弗爱','凯','普赛','奥米伽','天狼','参宿','织女','北落','轩辕','太微',
+  '紫微','天市','毕宿','心宿','角宿','亢宿','氐宿','房宿','尾宿','箕宿',
+  '南斗','河鼓','天津','雷电','阁道','华盖','杠星','传说','造父','渐台'];
+const SHIP_TYPES = {
+  scout:     { name:'侦察舰', cost:{min:15,ene:10}, attack:2, defense:1, speed:3, hp:2 },
+  fighter:   { name:'战斗机', cost:{min:25,ene:15}, attack:5, defense:2, speed:2, hp:3 },
+  destroyer: { name:'驱逐舰', cost:{min:40,ene:25}, attack:8, defense:5, speed:2, hp:5 },
+  cruiser:   { name:'巡洋舰', cost:{min:60,ene:40}, attack:12, defense:8, speed:1, hp:8 },
+  battleship:{ name:'无畏舰', cost:{min:100,ene:60}, attack:20, defense:15, speed:1, hp:15 },
+  colony:    { name:'殖民船', cost:{min:30,ene:20}, attack:0, defense:1, speed:2, hp:3 },
+};
+const BUILDING_TYPES = {
+  mine:     { name:'采矿枢纽', cost:{min:20,ene:15}, effect:{min:3}, turns:3, icon:'&#x26CF;' },
+  plant:    { name:'发电站',  cost:{min:15,ene:10}, effect:{ene:3}, turns:2, icon:'&#x26A1;' },
+  farm:     { name:'农场',   cost:{min:10,ene:10}, effect:{food:3}, turns:2, icon:'&#x1F33E;' },
+  lab:      { name:'实验室',  cost:{min:20,ene:20}, effect:{sci:3}, turns:3, icon:'&#x1F52C;' },
+  defense:  { name:'防御站',  cost:{min:25,ene:20}, effect:{def:5}, turns:3, icon:'&#x1F6E1;' },
+  shipyard: { name:'船坞',   cost:{min:30,ene:25}, effect:{}, turns:4, icon:'&#x2693;', unlocksShipBuilding:true },
+};
+const TECH_TREE = {
+  military: {
+    name:'军事科技', color:'#ef4444',
+    techs:[
+      { id:'mil1', name:'定向武器', cost:30, desc:'攻击力+2', effect:{shipAtk:2}, prereq:null },
+      { id:'mil2', name:'护盾技术', cost:50, desc:'防御力+2', effect:{shipDef:2}, prereq:'mil1' },
+      { id:'mil3', name:'战斗AI',  cost:80, desc:'解锁驱逐舰', effect:{unlock:'destroyer'}, prereq:'mil2' },
+      { id:'mil4', name:'相位装甲', cost:120, desc:'防御力+3', effect:{shipDef:3}, prereq:'mil3' },
+      { id:'mil5', name:'巡洋舰技术', cost:180, desc:'解锁巡洋舰', effect:{unlock:'cruiser'}, prereq:'mil4' },
+      { id:'mil6', name:'灭绝武器', cost:280, desc:'攻击力+5', effect:{shipAtk:5}, prereq:'mil5' },
+    ]
+  },
+  industry: {
+    name:'工业科技', color:'#f59e0b',
+    techs:[
+      { id:'ind1', name:'自动化采矿', cost:25, desc:'矿物+2/星系', effect:{minBoost:2}, prereq:null },
+      { id:'ind2', name:'聚变能源', cost:45, desc:'能量+2/星系', effect:{eneBoost:2}, prereq:'ind1' },
+      { id:'ind3', name:'星际物流', cost:75, desc:'解锁殖民船', effect:{unlock:'colony'}, prereq:'ind2' },
+      { id:'ind4', name:'纳米建造', cost:110, desc:'建造速度翻倍', effect:{buildSpeed:2}, prereq:'ind3' },
+      { id:'ind5', name:'轨道工厂', cost:160, desc:'解锁无畏舰', effect:{unlock:'battleship'}, prereq:'ind4' },
+      { id:'ind6', name:'戴森球', cost:260, desc:'能量+5/星系', effect:{eneBoost:5}, prereq:'ind5' },
+    ]
+  },
+  science: {
+    name:'科学科技', color:'#22d3ee',
+    techs:[
+      { id:'sci1', name:'量子计算', cost:25, desc:'科研+2/星系', effect:{sciBoost:2}, prereq:null },
+      { id:'sci2', name:'基因工程', cost:45, desc:'食物+2/星系', effect:{foodBoost:2}, prereq:'sci1' },
+      { id:'sci3', name:'人工智能', cost:75, desc:'科研+3/星系', effect:{sciBoost:3}, prereq:'sci2' },
+      { id:'sci4', name:'虫洞理论', cost:120, desc:'舰队速度+1', effect:{speedBoost:1}, prereq:'sci3' },
+      { id:'sci5', name:'意识上传', cost:180, desc:'人口增长翻倍', effect:{popGrowth:2}, prereq:'sci4' },
+      { id:'sci6', name:'超凡入圣', cost:300, desc:'胜利!研究所有科技', effect:{victory:'science'}, prereq:'sci5' },
+    ]
+  }
+};
+
+let G = null, canvas, ctx, hoverSystem = null;
+let camera = { x:0, y:0, zoom:1 }, mouseWorld = { x:0, y:0 };
+let isDragging = false, dragStart = { x:0, y:0 }, selectedFleet = null;
+const MAP_W = 1600, MAP_H = 1200;
+
+function initGameState(difficulty, civIndex) {
+  G = { turn:1, players:[], systems:[], fleets:[], currentPlayer:0, phase:'playing', selectedSystem:null, difficulty:difficulty||'normal', gameOver:false, winner:null, victoryType:null, turnPhase:'player', events:[] };
+  const playerOrder = [civIndex];
+  for(let i=0;i<5;i++) if(i!==civIndex) playerOrder.push(i);
+  for(let i=0;i<5;i++) {
+    const ci=playerOrder[i], cd=CIV_NAMES[ci];
+    G.players.push({ id:i, name:cd.name, color:cd.color, isHuman:i===0, alive:true, trait:cd.trait, traitData:CIV_TRAITS[cd.trait], resources:{min:20,ene:15,food:10,sci:5}, techs:{researched:[],researching:null,progress:0,techsResearched:0}, colonies:[], fleets:[], explored:new Set(), standing:{}, kills:0, losses:0, totalProduction:0 });
+  }
+  generateGalaxy();
+  if(difficulty==='hard') for(let i=1;i<5;i++){G.players[i].resources.min+=15;G.players[i].resources.ene+=10;}
+  if(difficulty==='impossible') for(let i=1;i<5;i++){G.players[i].resources.min+=30;G.players[i].resources.ene+=20;G.players[i].resources.food+=15;G.players[i].resources.sci+=10;}
+  for(let i=0;i<5;i++){G.players[i].standing={};for(let j=0;j<5;j++)if(i!==j)G.players[i].standing[j]=0;}
+  G.selectedSystem = G.systems[G.players[0].colonies[0]];
+  G.players[0].explored.add(G.selectedSystem.id);
+  exploreSystem(G.players[0], G.selectedSystem);
+}
+
+function generateGalaxy() {
+  const numSystems = 45+Math.floor(Math.random()*15), systems = [], minDist = 100, maxAttempts = 500;
+  for(let i=0;i<numSystems;i++) {
+    let attempts=0, placed=false;
+    while(!placed&&attempts<maxAttempts) {
+      const x=120+Math.random()*(MAP_W-240), y=100+Math.random()*(MAP_H-200); let ok=true;
+      for(const s of systems){const dx=s.x-x,dy=s.y-y;if(Math.sqrt(dx*dx+dy*dy)<minDist){ok=false;break;}}
+      if(ok) {
+        const planets = [];
+        for(let j=0;j<1+Math.floor(Math.random()*2.5);j++) {
+          const type=['terran','oceanic','desert','barren'][Math.floor(Math.random()*4)];
+          const size=['small','medium','large'][Math.floor(Math.random()*3)];
+          const br=getPlanetResources(type,size);
+          planets.push({name:PLANET_NAMES[Math.floor(Math.random()*PLANET_NAMES.length)],type,size,owner:null,population:0,buildings:[],buildingQueue:null,buildingTurns:0,baseResources:br,isColonized:false,defense:0,popGrowth:0});
+        }
+        systems.push({id:systems.length,x,y,name:SYSTEM_NAMES[Math.floor(Math.random()*SYSTEM_NAMES.length)]+' '+(Math.floor(Math.random()*999)+1),planets,connections:[],owner:null,explored:{}});
+        placed=true;
+      }
+      attempts++;
+    }
+  }
+  for(let i=0;i<systems.length;i++) {
+    const dists=[];
+    for(let j=0;j<systems.length;j++){if(i===j)continue;const dx=systems[i].x-systems[j].x,dy=systems[i].y-systems[j].y;dists.push({idx:j,dist:Math.sqrt(dx*dx+dy*dy)});}
+    dists.sort((a,b)=>a.dist-b.dist);
+    for(let k=0;k<Math.min(2+Math.floor(Math.random()*2),dists.length);k++){if(dists[k].dist<500){if(!systems[i].connections.includes(dists[k].idx))systems[i].connections.push(dists[k].idx);if(!systems[dists[k].idx].connections.includes(i))systems[dists[k].idx].connections.push(i);}}
+  }
+  ensureConnectivity(systems);
+  G.systems = systems;
+  const edgePool = [];
+  for(let i=0;i<systems.length;i++){let s=0;if(systems[i].x<250||systems[i].x>MAP_W-250)s+=2;if(systems[i].y<200||systems[i].y>MAP_H-200)s+=2;if(systems[i].connections.length<=2)s+=1;if(s>=2)edgePool.push(i);}
+  if(edgePool.length<5) for(let i=0;i<systems.length&&edgePool.length<5;i++) edgePool.push(i);
+  const shuffled=[...edgePool].sort(()=>Math.random()-0.5);
+  for(let i=0;i<5;i++) {
+    const sysIdx=shuffled[i%shuffled.length], sys=G.systems[sysIdx], player=G.players[i];
+    sys.owner=i;
+    let colonized=false;
+    for(const p of sys.planets){if(p.type!=='barren'){colonizePlanet(p,i);colonized=true;break;}}
+    if(!colonized&&sys.planets.length>0) colonizePlanet(sys.planets[0],i);
+    const fleet={id:G.fleets.length,owner:i,systemId:sysIdx,ships:[{type:'scout',hp:2},{type:'fighter',hp:3},{type:'fighter',hp:3}],mission:'idle',targetSystem:null,movesLeft:3};
+    fleet.movesLeft=fleet.ships.reduce((m,s)=>Math.max(m,SHIP_TYPES[s.type].speed),0);
+    G.fleets.push(fleet); player.fleets.push(fleet.id);
+    player.explored.add(sysIdx); exploreSystem(player,sys);
+  }
+}
+
+function ensureConnectivity(systems) {
+  const visited=new Set();
+  function dfs(idx){visited.add(idx);for(const c of systems[idx].connections)if(!visited.has(c))dfs(c);}
+  dfs(0);
+  for(let i=0;i<systems.length;i++){if(!visited.has(i)){let md=Infinity,cl=-1;for(const v of visited){const dx=systems[i].x-systems[v].x,dy=systems[i].y-systems[v].y,d=Math.sqrt(dx*dx+dy*dy);if(d<md){md=d;cl=v;}}if(cl>=0){systems[i].connections.push(cl);systems[cl].connections.push(i);dfs(i);}}}
+}
+
+function getPlanetResources(type,size) {
+  const sm=size==='large'?1.5:size==='medium'?1:0.6;
+  switch(type){case'terran':return{min:2,ene:2,food:4,sci:2,hab:1};case'oceanic':return{min:1,ene:3,food:3,sci:1,hab:0.8};case'desert':return{min:3,ene:3,food:0,sci:1,hab:0.5};case'barren':return{min:2,ene:2,food:0,sci:0,hab:0.2};default:return{min:1,ene:1,food:1,sci:1,hab:0.5};}
+}
+
+function colonizePlanet(planet,pid){planet.owner=pid;planet.isColonized=true;planet.population=1;G.players[pid].colonies.push(planet);}
+function exploreSystem(player,sys){player.explored.add(sys.id);for(const c of sys.connections)player.explored.add(c);}
+
+function getSystemProductions(sys) {
+  const p={min:0,ene:0,food:0,sci:0,def:0,hasShipyard:false};
+  if(sys.owner===null||!G.players[sys.owner]) return p;
+  const player=G.players[sys.owner];
+  p.hasShipyard=sys.planets.some(pl=>pl.buildings.includes('shipyard'));
+  for(const planet of sys.planets) {
+    if(planet.owner!==sys.owner) continue;
+    const br=planet.baseResources;
+    p.min+=br.min; p.ene+=br.ene; p.food+=br.food*(1+planet.population*0.2); p.sci+=br.sci; p.def+=planet.defense;
+    for(const bld of planet.buildings){const bt=BUILDING_TYPES[bld];if(!bt)continue;if(bt.effect.min)p.min+=bt.effect.min;if(bt.effect.ene)p.ene+=bt.effect.ene;if(bt.effect.food)p.food+=bt.effect.food;if(bt.effect.sci)p.sci+=bt.effect.sci;if(bt.effect.def)p.def+=bt.effect.def;}
+  }
+  for(const tid of player.techs.researched){const t=findTech(tid);if(!t)continue;if(t.effect.minBoost)p.min+=t.effect.minBoost;if(t.effect.eneBoost)p.ene+=t.effect.eneBoost;if(t.effect.foodBoost)p.food+=t.effect.foodBoost;if(t.effect.sciBoost)p.sci+=t.effect.sciBoost;}
+  if(player.trait==='economy'){p.min=Math.floor(p.min*1.15);p.ene=Math.floor(p.ene*1.15);p.food=Math.floor(p.food*1.15);}
+  if(player.trait==='science') p.sci=Math.floor(p.sci*1.25);
+  return p;
+}
+
+function processTurn() {
+  const player=G.players[G.currentPlayer]; if(!player) return;
+  let total={min:0,ene:0,food:0,sci:0};
+  for(const s of G.systems){if(s.owner===G.currentPlayer){const p=getSystemProductions(s);total.min+=p.min;total.ene+=p.ene;total.food+=p.food;total.sci+=p.sci;}}
+  total.min+=5; total.ene+=3;
+  player.resources.min+=total.min; player.resources.ene+=total.ene; player.resources.food+=Math.floor(total.food); player.resources.sci+=Math.floor(total.sci);
+  player.totalProduction+=total.min+total.ene+total.food+total.sci;
+  for(const sys of G.systems){if(sys.owner!==G.currentPlayer)continue;for(const planet of sys.planets){if(planet.owner!==G.currentPlayer)continue;const cap=planet.size==='large'?8:planet.size==='medium'?5:3,hab=planet.baseResources.hab||0.5;let pm=player.trait==='adaptive'?2:1;if(player.techs.researched.includes('sci5'))pm*=2;if(planet.population<cap){const g=0.05*hab*pm*(1-planet.population/cap);planet.popGrowth+=g;if(planet.popGrowth>=1){planet.population++;planet.popGrowth-=1;}}}}
+  for(const sys of G.systems){if(sys.owner!==G.currentPlayer)continue;for(const planet of sys.planets){if(planet.owner!==G.currentPlayer||!planet.buildingQueue)continue;const bt=BUILDING_TYPES[planet.buildingQueue];if(!bt)continue;let speed=player.techs.researched.includes('ind4')?2:1;planet.buildingTurns+=speed;if(planet.buildingTurns>=bt.turns){planet.buildings.push(planet.buildingQueue);planet.buildingQueue=null;planet.buildingTurns=0;addEvent(planet.name+' 上的 '+bt.name+' 建造完成','important');}}}
+  if(player.techs.researching){const cost=findTech(player.techs.researching)?.cost||50;player.techs.progress+=player.resources.sci;if(player.techs.progress>=cost){player.techs.researched.push(player.techs.researching);player.techs.techsResearched++;const t=findTech(player.techs.researching);addEvent('研究完成: '+t.name,'important');if(t&&t.effect.victory==='science')victory(G.currentPlayer,'science');player.techs.researching=null;player.techs.progress=0;}}
+  const upkeep=player.fleets.length*2; player.resources.ene=Math.max(0,player.resources.ene-upkeep);
+  for(const fid of player.fleets){const fleet=G.fleets[fid];if(!fleet||fleet.owner!==G.currentPlayer)continue;fleet.movesLeft=fleet.ships.reduce((m,s)=>Math.max(m,SHIP_TYPES[s.type].speed),0);if(player.techs.researched.includes('sci4'))fleet.movesLeft+=1;fleet.mission='idle';}
+}
+
+function resolveCombat(attFleet,defFleet,defSys) {
+  const attP=G.players[attFleet.owner], defP=G.players[defFleet.owner];
+  if(!attP.alive||!defP.alive) return;
+  let defB=0;
+  for(const p of defSys.planets){if(p.owner===defFleet.owner){defB+=p.defense;for(const b of p.buildings){if(BUILDING_TYPES[b]?.effect?.def)defB+=BUILDING_TYPES[b].effect.def;}}}
+  let atkPow=0, defPow=0;
+  for(const s of attFleet.ships){const st=SHIP_TYPES[s.type];atkPow+=(st.attack+(attP.techs.researched.some(t=>findTech(t)?.effect?.shipAtk)?2:0))*s.hp;}
+  if(attP.trait==='militaristic') atkPow=Math.floor(atkPow*1.2);
+  for(const s of defFleet.ships){const st=SHIP_TYPES[s.type];defPow+=(st.defense+(defP.techs.researched.some(t=>findTech(t)?.effect?.shipDef)?2:0))*s.hp;}
+  defPow+=defB*2; if(defP.trait==='militaristic') defPow=Math.floor(defPow*1.2);
+  const atkLoss=Math.min(attFleet.ships.length,Math.ceil(defPow/Math.max(1,atkPow)*(1+Math.random())));
+  const defLoss=Math.min(defFleet.ships.length,Math.ceil(atkPow/Math.max(1,defPow)*(1+Math.random())));
+  const atkDestroyed=attFleet.ships.splice(0,atkLoss), defDestroyed=defFleet.ships.splice(0,defLoss);
+  attP.losses+=atkDestroyed.length; defP.losses+=defDestroyed.length; attP.kills+=defDestroyed.length; defP.kills+=atkDestroyed.length;
+  addEvent('战斗于 '+defSys.name+': 攻击方损失 '+atkDestroyed.length+' 舰船, 防守方损失 '+defDestroyed.length+' 舰船','combat');
+  if(attFleet.ships.length===0){removeFleet(attFleet.id);addEvent(attP.name+' 的舰队在 '+defSys.name+' 被全歼!','combat');if(defFleet.ships.length>0){defFleet.mission='idle';defFleet.movesLeft=0;}return;}
+  if(defFleet.ships.length===0){removeFleet(defFleet.id);addEvent(defP.name+' 在 '+defSys.name+' 的舰队被全歼!','combat');if(defSys.owner===defFleet.owner){const rem=G.fleets.filter(f=>f.owner===defFleet.owner&&f.systemId===defSys.id);if(rem.length===0){defSys.owner=attFleet.owner;for(const pl of defSys.planets)pl.owner=attFleet.owner;addEvent(defSys.name+' 被 '+attP.name+' 占领!','important');if(!G.systems.some(s=>s.owner===defP.id))eliminatePlayer(defP.id);}}attFleet.mission='idle';attFleet.systemId=defSys.id;attFleet.movesLeft=0;}
+  else{attFleet.mission='idle';attFleet.movesLeft=0;}
+}
+
+function removeFleet(fid){const f=G.fleets[fid];if(!f)return;const p=G.players[f.owner];if(p)p.fleets=p.fleets.filter(x=>x!==fid);G.fleets=G.fleets.filter(x=>x.id!==fid);}
+
+function eliminatePlayer(pid){const p=G.players[pid];if(!p)return;p.alive=false;addEvent(p.name+' 已被消灭!','important');for(const f of[...p.fleets])removeFleet(f);p.fleets=[];const alive=G.players.filter(x=>x.alive);if(alive.length<=1&&alive[0]?.id===0)victory(0,'domination');else if(alive.length<=1&&alive[0])victory(alive[0].id,'domination');}
+
+function findTech(id){for(const cat of Object.values(TECH_TREE)){const t=cat.techs.find(tc=>tc.id===id);if(t)return t;}return null;}
+
+function moveFleetToSystem(fid,tsid) {
+  const fleet=G.fleets[fid]; if(!fleet||fleet.owner!==G.currentPlayer||!G.players[G.currentPlayer].alive) return false;
+  const sys=G.systems[tsid]; if(!sys) return false;
+  if(!G.systems[fleet.systemId].connections.includes(tsid)&&fleet.systemId!==tsid) return false;
+  if(fleet.movesLeft<=0&&fleet.systemId!==tsid) return false;
+  const hostile=G.fleets.find(f=>f.owner!==fleet.owner&&f.systemId===tsid&&f.owner!==G.currentPlayer&&G.players[f.owner]?.alive);
+  fleet.systemId=tsid; fleet.movesLeft--; fleet.mission='moving';
+  G.players[G.currentPlayer].explored.add(tsid); exploreSystem(G.players[G.currentPlayer],sys);
+  if(hostile&&G.players[hostile.owner]?.alive){resolveCombat(fleet,hostile,sys);return true;}
+  if(fleet.ships.some(s=>s.type==='colony')&&sys.owner===null){const uc=sys.planets.find(p=>p.owner===null&&p.baseResources.hab>=0.3);if(uc){const ci=fleet.ships.findIndex(s=>s.type==='colony');if(ci>=0){fleet.ships.splice(ci,1);colonizePlanet(uc,fleet.owner);addEvent(G.players[fleet.owner].name+' 在 '+sys.name+' 建立了新殖民地!','important');}}}
+  return true;
+}
+
+function buildShip(planet,sysId,shipType) {
+  const player=G.players[G.currentPlayer], st=SHIP_TYPES[shipType];
+  if(!st||player.resources.min<st.cost.min||player.resources.ene<st.cost.ene) return false;
+  if(shipType==='colony'&&!player.techs.researched.includes('ind3')) return false;
+  if(shipType==='destroyer'&&!player.techs.researched.includes('mil3')) return false;
+  if(shipType==='cruiser'&&!player.techs.researched.includes('mil5')) return false;
+  if(shipType==='battleship'&&!player.techs.researched.includes('ind5')) return false;
+  player.resources.min-=st.cost.min; player.resources.ene-=st.cost.ene;
+  let fleet=G.fleets.find(f=>f.owner===G.currentPlayer&&f.systemId===sysId);
+  if(!fleet){fleet={id:G.fleets.length,owner:G.currentPlayer,systemId:sysId,ships:[],mission:'idle',targetSystem:null,movesLeft:3};G.fleets.push(fleet);player.fleets.push(fleet.id);}
+  fleet.ships.push({type:shipType,hp:st.hp});
+  fleet.movesLeft=Math.max(fleet.movesLeft||0,fleet.ships.reduce((m,s)=>Math.max(m,SHIP_TYPES[s.type].speed),0));
+  addEvent('在 '+G.systems[sysId].name+' 建造了 '+st.name,''); return true;
+}
+
+function victory(pid,type){G.gameOver=true;G.winner=pid;G.victoryType=type;showGameOver(pid,type);}
+
+function processAITurn() {
+  for(let i=1;i<5;i++){if(!G.players[i].alive)continue;G.currentPlayer=i;processTurn();aiDecide(i);}
+  G.currentPlayer=0;
+}
+
+function aiDecide(pid) {
+  const player=G.players[pid]; if(!player.alive) return;
+  const mySystems=G.systems.filter(s=>s.owner===pid);
+  for(const sys of mySystems){
+    const prod=getSystemProductions(sys);
+    if(!prod.hasShipyard) continue;
+    const enemyNear=G.systems.some(s=>sys.connections.includes(s.id)&&s.owner!==null&&s.owner!==pid&&G.players[s.owner]?.alive);
+    const here=G.fleets.filter(f=>f.owner===pid&&f.systemId===sys.id);
+    const fp=here.reduce((s,f)=>s+f.ships.length,0);
+    if(player.resources.min>=60&&player.resources.ene>=40&&fp<5){if(player.techs.researched.includes('mil5'))buildShip(sys.planets[0],sys.id,'cruiser');else if(player.techs.researched.includes('mil3'))buildShip(sys.planets[0],sys.id,'destroyer');else buildShip(sys.planets[0],sys.id,'fighter');}
+    else if(player.resources.min>=30&&player.resources.ene>=20&&enemyNear) buildShip(sys.planets[0],sys.id,'fighter');
+    else if(player.resources.min>=30&&player.resources.ene>=20&&mySystems.length<5&&player.techs.researched.includes('ind3')) buildShip(sys.planets[0],sys.id,'colony');
+  }
+  for(const sys of mySystems){for(const planet of sys.planets){if(planet.owner!==pid||planet.buildingQueue)continue;const p=['mine','plant','farm','lab','shipyard','defense'];for(const bt of p){const bd=BUILDING_TYPES[bt];if(!bd||planet.buildings.includes(bt))continue;if(bt==='shipyard'&&sys.planets.some(p=>p.buildings.includes('shipyard')))continue;if(player.resources.min>=bd.cost.min&&player.resources.ene>=bd.cost.ene){player.resources.min-=bd.cost.min;player.resources.ene-=bd.cost.ene;planet.buildingQueue=bt;planet.buildingTurns=0;break;}}}}
+  if(!player.techs.researching){const av=getAvailableTechs(pid);if(av.length>0){player.techs.researching=av[0].id;player.techs.progress=0;}}
+  for(const fid of[...player.fleets]){const fleet=G.fleets[fid];if(!fleet||fleet.owner!==pid||fleet.movesLeft<=0)continue;const cs=G.systems[fleet.systemId];if(!cs)continue;let targets=cs.connections.map(c=>G.systems[c]).filter(s=>s);const col=targets.filter(s=>s.owner===null&&s.planets.some(p=>p.baseResources.hab>=0.3&&p.owner===null)&&fleet.ships.some(sh=>sh.type==='colony'));if(col.length>0){moveFleetToSystem(fid,col[0].id);continue;}const atk=targets.filter(s=>s.owner!==null&&s.owner!==pid&&G.players[s.owner]?.alive);for(const t of atk){const df=G.fleets.filter(f=>f.owner===t.owner&&f.systemId===t.id);if(fleet.ships.length>df.reduce((s,f)=>s+f.ships.length,0)*1.3||(fleet.ships.length>=3&&df.length===0)){moveFleetToSystem(fid,t.id);break;}}if(fleet.movesLeft<=0||fleet.mission!=='idle')continue;const ue=targets.filter(s=>!player.explored.has(s.id)&&s.id!==fleet.systemId);if(ue.length>0){moveFleetToSystem(fid,ue[Math.floor(Math.random()*ue.length)].id);continue;}const conn=cs.connections.filter(c=>c!==fleet.systemId);if(fleet.movesLeft>0&&fleet.mission==='idle'&&conn.length>0){moveFleetToSystem(fid,conn[Math.floor(Math.random()*conn.length)]);}}
+}
+
+function getAvailableTechs(pid){const p=G.players[pid],av=[];for(const cat of Object.values(TECH_TREE))for(const t of cat.techs)if(!p.techs.researched.includes(t.id)&&p.techs.researching!==t.id&&(!t.prereq||p.techs.researched.includes(t.prereq)))av.push(t);return av;}
+
+function endTurn() {
+  if(G.gameOver||G.currentPlayer!==0||!G.players[0].alive||G.turnPhase!=='player') return;
+  processTurn(); G.turnPhase='ai'; processAITurn();
+  G.fleets=G.fleets.filter(f=>G.players[f.owner]?.alive);
+  G.turn++; G.currentPlayer=0; G.turnPhase='player';
+  const player=G.players[0];
+  for(const fid of player.fleets){const f=G.fleets[fid];if(!f)continue;f.movesLeft=f.ships.reduce((m,s)=>Math.max(m,SHIP_TYPES[s.type].speed),0);if(player.techs.researched.includes('sci4'))f.movesLeft+=1;f.mission='idle';}
+  updateUI(); updateCanvas(); addEvent('回合 '+G.turn+' 开始','');
+}
+
+function addEvent(msg,type=''){G.events.push({msg,type,time:Date.now()});if(G.events.length>20)G.events.shift();const log=document.getElementById('event-log'),el=document.createElement('div');el.className='event-msg'+(type?' '+type:'');el.textContent=msg;log.appendChild(el);setTimeout(()=>{if(el.parentNode)el.remove();},4000);}
+
+function initCanvas(){canvas=document.getElementById('galaxy-canvas');ctx=canvas.getContext('2d');resizeCanvas();window.addEventListener('resize',resizeCanvas);}
+function resizeCanvas(){if(!canvas)return;const r=document.getElementById('map-area').getBoundingClientRect();canvas.width=r.width;canvas.height=r.height;if(G)updateCanvas();}
+function screenToWorld(sx,sy){return{x:(sx-canvas.width/2)/camera.zoom+camera.x,y:(sy-canvas.height/2)/camera.zoom+camera.y};}
+function worldToScreen(wx,wy){return{x:(wx-camera.x)*camera.zoom+canvas.width/2,y:(wy-camera.y)*camera.zoom+canvas.height/2};}
+
+function updateCanvas() {
+  if(!ctx||!G)return;const w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);
+  const bg=ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.max(w,h)*0.7);bg.addColorStop(0,'#0d0d22');bg.addColorStop(1,'#060610');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
+  ctx.fillStyle='rgba(255,255,255,0.4)';for(let i=0;i<120;i++){const sx=(i*137.5+50)%w,sy=(i*97.3+30)%h,r=0.4+(i%3)*0.3;ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);ctx.fill();}
+  const drawn=new Set();
+  for(const sys of G.systems){if(!G.players[0].explored.has(sys.id))continue;for(const cid of sys.connections){const k=Math.min(sys.id,cid)+'-'+Math.max(sys.id,cid);if(drawn.has(k))continue;drawn.add(k);const t=G.systems[cid];if(!t||!G.players[0].explored.has(cid))continue;const p1=worldToScreen(sys.x,sys.y),p2=worldToScreen(t.x,t.y);ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.strokeStyle='rgba(0,240,255,0.08)';ctx.lineWidth=1;ctx.stroke();}}
+  for(const sys of G.systems){if(!G.players[0].explored.has(sys.id))continue;const pos=worldToScreen(sys.x,sys.y),r=10+sys.planets.length*2,isSel=G.selectedSystem&&G.selectedSystem.id===sys.id,isHov=hoverSystem===sys.id;if(sys.owner!==null&&G.players[sys.owner]){const col=G.players[sys.owner].color,grd=ctx.createRadialGradient(pos.x,pos.y,0,pos.x,pos.y,r*3);grd.addColorStop(0,col+'40');grd.addColorStop(1,'transparent');ctx.fillStyle=grd;ctx.beginPath();ctx.arc(pos.x,pos.y,r*3,0,Math.PI*2);ctx.fill();}if(isSel||isHov){ctx.beginPath();ctx.arc(pos.x,pos.y,r+4,0,Math.PI*2);ctx.strokeStyle=isSel?'#00f0ff':'rgba(0,240,255,0.3)';ctx.lineWidth=isSel?2:1;ctx.setLineDash(isSel?[]:[3,3]);ctx.stroke();ctx.setLineDash([]);}const col=sys.owner!==null&&G.players[sys.owner]?G.players[sys.owner].color:'#444466',grd=ctx.createRadialGradient(pos.x-r*0.3,pos.y-r*0.3,0,pos.x,pos.y,r);grd.addColorStop(0,'#e0e0ff');grd.addColorStop(0.5,col);grd.addColorStop(1,col+'88');ctx.fillStyle=grd;ctx.beginPath();ctx.arc(pos.x,pos.y,r,0,Math.PI*2);ctx.fill();ctx.fillStyle='rgba(200,200,255,0.5)';ctx.font='9px Rajdhani';ctx.textAlign='center';ctx.fillText(sys.name,pos.x,pos.y+r+11);const fh=G.fleets.filter(f=>f.systemId===sys.id);if(fh.length>0){let fc=0,hc=0;for(const f of fh){if(f.owner===0)fc+=f.ships.length;else if(G.players[f.owner]?.alive)hc+=f.ships.length;}if(hc>0){ctx.fillStyle='#ef4444';ctx.font='bold 10px Rajdhani';ctx.textAlign='left';ctx.fillText('\u2694'+hc,pos.x+r+5,pos.y+4);}if(fc>0){ctx.fillStyle='#22c55e';ctx.font='bold 10px Rajdhani';ctx.textAlign='right';ctx.fillText(fc+'\u26F5',pos.x-r-5,pos.y+4);}}}
+}
+
+function setupInput() {
+  canvas.addEventListener('mousedown',e=>{isDragging=false;dragStart={x:e.clientX,y:e.clientY};});
+  canvas.addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect(),sx=e.clientX-r.left,sy=e.clientY-r.top;mouseWorld=screenToWorld(sx,sy);if(e.buttons&1){const dx=e.clientX-dragStart.x,dy=e.clientY-dragStart.y;if(Math.abs(dx)>3||Math.abs(dy)>3){isDragging=true;camera.x-=dx/camera.zoom;camera.y-=dy/camera.zoom;dragStart={x:e.clientX,y:e.clientY};updateCanvas();}}let found=null;for(const sys of G.systems){if(!G.players[0].explored.has(sys.id))continue;const pos=worldToScreen(sys.x,sys.y),r=10+sys.planets.length*2;if(Math.sqrt((sx-pos.x)**2+(sy-pos.y)**2)<r+8){found=sys.id;break;}}if(found!==hoverSystem){hoverSystem=found;canvas.style.cursor=found!==null?'pointer':'default';updateCanvas();}});
+  canvas.addEventListener('mouseup',e=>{if(e.button===2&&!isDragging){const r=canvas.getBoundingClientRect();handleRightClick(e.clientX-r.left,e.clientY-r.top);}});
+  canvas.addEventListener('contextmenu',e=>e.preventDefault());
+  canvas.addEventListener('wheel',e=>{e.preventDefault();camera.zoom=Math.max(0.3,Math.min(3,camera.zoom*(e.deltaY>0?0.9:1.1)));updateCanvas();});
+  canvas.addEventListener('click',e=>{if(!isDragging){const r=canvas.getBoundingClientRect();handleClick(e.clientX-r.left,e.clientY-r.top);}});
+  canvas.addEventListener('dblclick',e=>{if(G.selectedSystem){camera.x=G.selectedSystem.x;camera.y=G.selectedSystem.y;camera.zoom=1.5;updateCanvas();}});
+}
+
+function handleClick(sx,sy){if(G.gameOver||G.turnPhase!=='player')return;let cl=null;for(const sys of G.systems){if(!G.players[0].explored.has(sys.id))continue;const pos=worldToScreen(sys.x,sys.y),r=10+sys.planets.length*2;if(Math.sqrt((sx-pos.x)**2+(sy-pos.y)**2)<r+8){cl=sys;break;}}if(cl){G.selectedSystem=cl;closeSidePanel();showSystemPanel(cl);updateCanvas();}else{G.selectedSystem=null;closeSidePanel();updateCanvas();document.getElementById('status-text').innerHTML='点击星系查看详情 · 右键移动舰队';}}
+
+function handleRightClick(sx,sy){if(G.gameOver||G.turnPhase!=='player')return;let cl=null;for(const sys of G.systems){if(!G.players[0].explored.has(sys.id))continue;const pos=worldToScreen(sys.x,sys.y),r=10+sys.planets.length*2;if(Math.sqrt((sx-pos.x)**2+(sy-pos.y)**2)<r+8){cl=sys;break;}}if(!cl)return;const fl=G.fleets.filter(f=>f.owner===0&&f.systemId===(G.selectedSystem?G.selectedSystem.id:-1));if(fl.length===0){const anyFleet=G.fleets.find(f=>f.owner===0&&f.movesLeft>0);if(anyFleet&&anyFleet.systemId!==cl.id){moveFleetToSystem(anyFleet.id,cl.id);updateUI();updateCanvas();showSystemPanel(cl);}return;}const fleet=fl[0];if(fleet.systemId===cl.id)return;if(!G.systems[fleet.systemId].connections.includes(cl.id)){addEvent('无法到达该星系(无航线连接)','');return;}if(fleet.movesLeft<=0){addEvent('该舰队已无移动力','');return;}moveFleetToSystem(fleet.id,cl.id);updateUI();updateCanvas();showSystemPanel(cl);}
+
+function showSystemPanel(sys) {
+  if(!sys)return;const pnl=document.getElementById('side-panel'),title=document.getElementById('panel-title'),body=document.getElementById('panel-body');title.textContent=sys.name;document.getElementById('status-text').innerHTML='已选择: <span>'+sys.name+'</span>';const player=G.players[0],oName=sys.owner!==null?G.players[sys.owner]?.name||'无':'无',oCol=sys.owner!==null?G.players[sys.owner]?.color||'#666':'#666';const tn={terran:'类地',oceanic:'海洋',desert:'沙漠',barren:'贫瘠'},sn={small:'小型',medium:'中型',large:'大型'};
+  let html='<div class="system-tooltip"><div class="st-name">'+sys.name+'</div><div class="st-owner">归属: <span style="color:'+oCol+'">'+oName+'</span>';if(sys.owner===0){const pr=getSystemProductions(sys);html+=' <span style="color:#888;font-size:11px;">(\u26CF'+pr.min+' \u26A1'+pr.ene+' \uD83C\uDF3E'+Math.floor(pr.food)+' \uD83D\uDD2C'+Math.floor(pr.sci)+')</span>';}html+='</div>';
+  for(const planet of sys.planets){const pO=planet.owner!==null?G.players[planet.owner]?.name:'无主',pC=planet.owner!==null?G.players[planet.owner]?.color:'#666';html+='<div class="st-planet"><div class="pl-name">'+planet.name+' <span style="font-size:11px;color:#888;font-weight:400;">['+(tn[planet.type]||planet.type)+' '+(sn[planet.size]||planet.size)+']</span></div><div class="pl-info">归属: <span style="color:'+pC+'">'+pO+'</span>';if(planet.isColonized&&planet.owner!==null)html+=' · 人口: '+planet.population.toFixed(1);html+='</div>';if(planet.buildings.length>0){html+='<div class="st-buildings">';for(const b of planet.buildings){const bt=BUILDING_TYPES[b];if(bt)html+='<span class="bld-item">'+bt.icon+' '+bt.name+'</span>';}html+='</div>';}if(planet.buildingQueue){const bt=BUILDING_TYPES[planet.buildingQueue];if(bt)html+='<div class="st-building-queue">建造中: '+bt.icon+' '+bt.name+' ('+planet.buildingTurns+'/'+bt.turns+'回合)</div>';}html+='</div>';
+    if(planet.owner===0&&planet.isColonized&&!planet.buildingQueue){html+='<div class="st-actions" style="margin-top:4px;margin-bottom:6px;">';const hasSY=sys.planets.some(p=>p.buildings.includes('shipyard'));for(const bt of ['mine','plant','farm','lab','defense','shipyard']){const bd=BUILDING_TYPES[bt];if(!bd||planet.buildings.includes(bt))continue;if(bt==='shipyard'&&hasSY)continue;const ok=player.resources.min>=bd.cost.min&&player.resources.ene>=bd.cost.ene;const sameCat=['mine','plant','farm','lab'].includes(bt);if(sameCat&&planet.buildings.some(b=>['mine','plant','farm','lab'].includes(b)))continue;html+='<button class="small" '+(ok?'onclick="startBuilding('+sys.id+',\''+planet.name+'\',\''+bt+'\')"':'disabled')+'>'+bd.icon+' '+bd.name+' ('+bd.cost.min+'/'+bd.cost.ene+')</button>';}html+='</div>';}
+  }
+  const fh=G.fleets.filter(f=>f.systemId===sys.id);if(fh.length>0){for(const fleet of fh){const fO=G.players[fleet.owner];if(!fO)continue;html+='<div class="st-fleet"><div class="pl-name">'+fO.name+' 舰队 <span style="font-size:11px;color:#888;">[移动力: '+fleet.movesLeft+']</span></div><div class="pl-info">';for(const s of fleet.ships){const st=SHIP_TYPES[s.type];if(st)html+=st.name+' ';}html+='</div>';if(fleet.owner===0)html+='<div class="st-actions"><button class="small" onclick="selectPlayerFleet('+fleet.id+')">选择舰队</button></div>';html+='</div>';}}
+  if(sys.owner===0&&sys.planets.some(p=>p.buildings.includes('shipyard'))){html+='<div style="margin-top:8px;"><strong style="color:#a855f7;font-size:13px;">建造舰船</strong></div><div class="st-actions">';for(const st of ['scout','fighter','colony','destroyer','cruiser','battleship']){const sd=SHIP_TYPES[st];if(!sd)continue;let ul=st==='scout'||st==='fighter';if(st==='colony'&&player.techs.researched.includes('ind3'))ul=true;if(st==='destroyer'&&player.techs.researched.includes('mil3'))ul=true;if(st==='cruiser'&&player.techs.researched.includes('mil5'))ul=true;if(st==='battleship'&&player.techs.researched.includes('ind5'))ul=true;const ok=player.resources.min>=sd.cost.min&&player.resources.ene>=sd.cost.ene;html+='<button class="small" '+(ul&&ok?'onclick="buildShipFromPanel(\''+st+'\')"':'disabled')+'>'+sd.name+' ('+sd.cost.min+'/'+sd.cost.ene+')</button>';}html+='</div>';}
+  html+='</div>';body.innerHTML=html;pnl.classList.add('open');
+}
+function closeSidePanel(){document.getElementById('side-panel').classList.remove('open');}
+function selectPlayerFleet(fid){selectedFleet=fid;addEvent('已选择舰队，右键目标星系可移动','');}
+function startBuilding(sysId,pName,bt){const sys=G.systems[sysId];if(!sys)return;const planet=sys.planets.find(p=>p.name===pName);if(!planet||planet.buildingQueue)return;const player=G.players[0],bd=BUILDING_TYPES[bt];if(!bd||player.resources.min<bd.cost.min||player.resources.ene<bd.cost.ene)return;player.resources.min-=bd.cost.min;player.resources.ene-=bd.cost.ene;planet.buildingQueue=bt;planet.buildingTurns=0;addEvent('开始在 '+planet.name+' 建造 '+bd.name,'');updateUI();showSystemPanel(sys);}
+function buildShipFromPanel(st){if(!G.selectedSystem)return;const p=G.selectedSystem.planets.find(p=>p.owner===0);if(!p)return;buildShip(p,G.selectedSystem.id,st);updateUI();showSystemPanel(G.selectedSystem);}
+function openTechTree(){const m=document.getElementById('modal-overlay'),b=document.getElementById('modal-box'),p=G.players[0];let h='<h2>\uD83D\uDD2C 科技树</h2><div class="tech-tree">';for(const[k,cat]of Object.entries(TECH_TREE)){h+='<div class="tech-category"><h4 style="color:'+cat.color+'">'+cat.name+'</h4>';for(const t of cat.techs){const r=p.techs.researched.includes(t.id),g=p.techs.researching===t.id,av=(!t.prereq||p.techs.researched.includes(t.prereq))&&!r&&!g;let cls='tech-item'+(r?' researched':'')+(g?' researching':'')+(av?' available':' locked'),cs=r?'\u2713 已完成':g?Math.floor(p.techs.progress)+'/'+t.cost+' \uD83D\uDD2C':t.cost+' \uD83D\uDD2C';h+='<div class="'+cls+'" '+(av?'onclick="startResearch(\''+t.id+'\')"':'')+'><span class="tech-name">'+t.name+'</span><span><span class="tech-cost">'+cs+'</span></span></div><div style="font-size:11px;color:#888;margin:-2px 0 2px 12px;">'+t.desc+'</div>';}h+='</div>';}h+='</div><div class="modal-footer"><button class="modal-btn" onclick="closeModal()">关闭</button></div>';b.innerHTML=h;m.classList.remove('hidden');}
+function startResearch(id){const p=G.players[0];if(p.techs.researching)return;p.techs.researching=id;p.techs.progress=0;const t=findTech(id);addEvent('开始研究: '+t.name,'important');updateUI();openTechTree();}
+function openDiplomacy(){const m=document.getElementById('modal-overlay'),b=document.getElementById('modal-box'),p=G.players[0];let h='<h2>\uD83E\uDD1D 外交</h2>',f=false;for(let i=1;i<5;i++){const q=G.players[i];if(!q.alive)continue;f=true;const st=p.standing[i]||0,atWar=st<-50;h+='<div class="diplo-card"><div class="diplo-name" style="color:'+q.color+'">'+q.name+'</div><div class="diplo-status">关系: '+(st>30?'友好':st>0?'中立':st>-50?'冷淡':'战争')+'</div><div class="diplo-status">殖民地: '+G.systems.filter(s=>s.owner===i).length+' · 舰队: '+q.fleets.length+'</div><div class="diplo-actions">'+(atWar?'<button onclick="makePeace('+i+')">\u262E 求和</button>':'<button class="war-btn" onclick="declareWar('+i+')">\u2694 宣战</button>')+'</div></div>';}if(!f)h+='<div style="text-align:center;color:#888;padding:20px;">没有活跃的外交对象</div>';h+='<div class="modal-footer"><button class="modal-btn" onclick="closeModal()">关闭</button></div>';b.innerHTML=h;m.classList.remove('hidden');}
+function declareWar(id){G.players[0].standing[id]=-100;addEvent('对 '+G.players[id].name+' 宣战!','combat');updateUI();openDiplomacy();}
+function makePeace(id){G.players[0].standing[id]=0;addEvent('与 '+G.players[id].name+' 达成和平','important');updateUI();openDiplomacy();}
+function openEmpire(){const m=document.getElementById('modal-overlay'),b=document.getElementById('modal-box'),p=G.players[0];const sys=G.systems.filter(s=>s.owner===0),fs=p.fleets.reduce((s,fid)=>{const f=G.fleets[fid];return s+(f?f.ships.length:0);},0),tp=p.colonies.reduce((s,p)=>s+(p.population||0),0);let h='<h2>\uD83D\uDCCA '+p.name+' 帝国概况</h2><div class="empire-stat"><span class="label">回合数</span><span class="value">'+G.turn+'</span></div><div class="empire-stat"><span class="label">控制的星系</span><span class="value">'+sys.length+'</span></div><div class="empire-stat"><span class="label">殖民地</span><span class="value">'+p.colonies.length+'</span></div><div class="empire-stat"><span class="label">总人口</span><span class="value">'+tp.toFixed(1)+'</span></div><div class="empire-stat"><span class="label">舰队数量</span><span class="value">'+p.fleets.length+'</span></div><div class="empire-stat"><span class="label">总舰船数</span><span class="value">'+fs+'</span></div><div class="empire-stat"><span class="label">已研究科技</span><span class="value">'+p.techs.techsResearched+'</span></div><div class="empire-stat"><span class="label">总产量</span><span class="value">'+p.totalProduction+'</span></div><div class="empire-stat"><span class="label">消灭敌舰</span><span class="value">'+p.kills+'</span></div><div class="empire-stat"><span class="label">损失舰船</span><span class="value">'+p.losses+'</span></div><div class="empire-stat"><span class="label">性格特质</span><span class="value" style="color:'+p.traitData.color+'">'+p.traitData.name+' ('+p.traitData.desc+')</span></div><div style="margin-top:12px;"><strong style="color:#00f0ff;font-size:13px;">所属星系</strong></div>';for(const s of sys){const pr=getSystemProductions(s);h+='<div class="empire-stat" style="font-size:12px;"><span class="label">'+s.name+'</span><span class="value" style="font-size:11px;">\u26CF'+pr.min+' \u26A1'+pr.ene+' \uD83C\uDF3E'+Math.floor(pr.food)+' \uD83D\uDD2C'+Math.floor(pr.sci)+'</span></div>';}h+='<div class="modal-footer"><button class="modal-btn" onclick="closeModal()">关闭</button></div>';b.innerHTML=h;m.classList.remove('hidden');}
+function showGameOver(pid,type){const m=document.getElementById('modal-overlay'),b=document.getElementById('modal-box'),win=pid===0;const tn={domination:'征服胜利',science:'科技胜利'};b.innerHTML='<div class="game-over-box"><div class="go-icon">'+(win?'\uD83C\uDFC6':'💀')+'</div><h2 style="color:'+(win?'#f59e0b':'#ef4444')+'">'+(win?'胜利!':'失败')+'</h2><div class="go-desc">'+(win?'你通过 '+(tn[type]||type)+' 征服了银河系!':G.players[pid].name+' 被击败了')+'</div><div class="go-stats">回合数: '+G.turn+'<br>星系: '+G.systems.filter(s=>s.owner===0).length+'<br>殖民地: '+G.players[0].colonies.length+'<br>消灭: '+G.players[0].kills+'<br>损失: '+G.players[0].losses+'<br>总产量: '+G.players[0].totalProduction+'</div><div class="modal-footer"><button class="modal-btn primary" onclick="location.reload()">重新开始</button><button class="modal-btn" onclick="closeModal()">继续观看</button></div></div>';m.classList.remove('hidden');}
+let selectedDifficulty='normal',selectedCiv=0;
+function showWelcome(){const m=document.getElementById('modal-overlay'),b=document.getElementById('modal-box');const cb=CIV_NAMES.map((c,i)=>'<button style="--civ-color:'+c.color+'" class="'+(i===0?'selected':'')+'" onclick="selectCiv('+i+')">'+c.name+'</button>').join('');b.innerHTML='<div class="welcome-box"><h1>⭐ STELLAR CIV ⭐</h1><div class="sub">银河系文明 — 太空4X策略</div><div class="welcome-desc"><span>●</span> 探索星系 · 殖民星球 · 研发科技 · 征服银河<br><span>●</span> 5个文明争夺银河霸主地位<br><span>●</span> 3种胜利方式：<span>征服</span> · <span>科技</span><br><span>●</span> 选择你的文明，开启星际征途!</div><div style="margin-bottom:8px;font-size:13px;color:#8888aa;">选择文明</div><div class="civ-pick">'+cb+'</div><div style="margin-bottom:8px;font-size:13px;color:#8888aa;">选择难度</div><div class="diff-select"><button class="selected" onclick="selectDifficulty(\'normal\')" data-diff="normal">普通</button><button onclick="selectDifficulty(\'hard\')" data-diff="hard">困难</button><button onclick="selectDifficulty(\'impossible\')" data-diff="impossible">地狱</button></div><button class="start-btn" onclick="startGame()">开 始 游 戏</button></div>';m.classList.remove('hidden');m.style.background='rgba(0,0,0,0.85)';}
+function selectCiv(idx){selectedCiv=idx;document.querySelectorAll('.civ-pick button').forEach((b,i)=>b.className=i===idx?'selected':'');}
+function selectDifficulty(d){selectedDifficulty=d;document.querySelectorAll('.diff-select button').forEach(b=>b.className=b.dataset.diff===d?'selected':'');}
+function startGame(){document.getElementById('modal-overlay').classList.add('hidden');document.getElementById('modal-overlay').style.background='';initGameState(selectedDifficulty,selectedCiv);updateUI();updateCanvas();camera.x=G.selectedSystem.x;camera.y=G.selectedSystem.y;camera.zoom=1;updateCanvas();}
+function updateUI(){if(!G)return;const p=G.players[0];document.getElementById('turn-num').textContent=G.turn;document.getElementById('player-name').textContent=p.name;document.getElementById('player-dot').style.background=p.color;document.getElementById('res-min').textContent=Math.floor(p.resources.min);document.getElementById('res-ene').textContent=Math.floor(p.resources.ene);document.getElementById('res-food').textContent=Math.floor(p.resources.food);document.getElementById('res-sci').textContent=Math.floor(p.resources.sci);document.getElementById('btn-endturn').disabled=!(G.turnPhase==='player'&&G.currentPlayer===0&&!G.gameOver);}
+function closeModal(){document.getElementById('modal-overlay').classList.add('hidden');}
+function init(){initCanvas();setupInput();showWelcome();function loop(){updateCanvas();requestAnimationFrame(loop);}loop();}
+window.addEventListener('load',init);
+window.closeModal=closeModal;
+</script>
+</body>
+</html>
